@@ -24,6 +24,8 @@ import {
 	emptyMatrix,
 	resize,
 	roleOf,
+	sectionOf,
+	settingErrors,
 	spaceErrors,
 	testChannels,
 	toWireSetup,
@@ -305,7 +307,7 @@ describe('the setup summary', () => {
 			law: LAW,
 			lawsLoaded: true,
 			check: null,
-			counts: { channels: zero, reference: zero, control: zero, schedule: zero, backend: zero, predict: zero },
+			counts: { channels: zero, reference: zero, control: zero, schedule: zero, record: zero, backend: zero, predict: zero },
 			station: { kind: 'sim', dirty: false },
 			tableErrors: 0,
 			setupStatus: 'none',
@@ -353,3 +355,27 @@ describe('the setup summary', () => {
 		expect(missingList(s).map((x) => x.text)).toEqual(['Accept the repair, or change the pairs that cannot hold.']);
 	});
 });
+
+describe("the run record's words", () => {
+	it('go with the setup, trimmed, the specification only when one is named, the streams on by default', () => {
+		const { rows, d } = bench();
+		expect(d.record).toEqual({ operator: '', article: '', notes: '', document: '', clause: '', streams: true });
+		const at = (draft: MimoDraft) => toWireSetup(draft, { rows, space: PHYSICAL, reference: { kind: 'file', path: '/r', sha256: 'e'.repeat(64) }, law: LAW, backend: 'sim' })!;
+		const none = at(d);
+		expect([none.operator, none.article, none.notes, none.specification, none.record]).toEqual(['', '', '', null, { streams: true }]);
+		d.record = { operator: ' A. Operator ', article: 'Bracket, serial 7', notes: ' first article ', document: 'Test procedure 12', clause: '4.2', streams: false };
+		const s = at(d);
+		expect([s.operator, s.article, s.notes, s.specification, s.record]).toEqual(['A. Operator', 'Bracket, serial 7', 'first article', { document: 'Test procedure 12', clause: '4.2' }, { streams: false }]);
+	});
+
+	it('are a section of their own, where a clause without its document is named', () => {
+		for (const key of ['operator', 'article', 'notes', 'specification.document', 'record.streams']) expect(sectionOf(key)).toBe('record');
+		expect(sectionOf('schedule.levels.0.db')).toBe('schedule');
+		const d = defaultMimoSetup();
+		d.record.clause = '4.2';
+		expect(settingErrors(d)['specification.document']).toEqual(['Name the document this clause is from.']);
+		d.record.document = 'Test procedure 12';
+		expect(settingErrors(d)['specification.document']).toBeUndefined();
+	});
+});
+

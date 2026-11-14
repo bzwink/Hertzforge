@@ -20,10 +20,11 @@ export interface RunOpenHost {
 
 /** The analysis workspace a run's data opens in, by the test that made it. */
 export function workspaceForRun(test: string): Workspace {
-	// PSDs against their specification are the Random workspace's, sine levels against theirs the
-	// Sine workspace's, and a classical shock run's pulses, SRS and their band the Shock
-	// workspace's; any other run's recordings, Signals'.
-	if (test === 'random') return 'random';
+	// PSDs against their specification are the Random workspace's (a MIMO Random run's spectral
+	// matrices and its reference with its cross terms too), sine levels against theirs the Sine
+	// workspace's, and a classical shock run's pulses, SRS and their band the Shock workspace's;
+	// any other run's recordings, Signals'.
+	if (test === 'random' || test === 'mimo_random') return 'random';
 	if (test === 'sine') return 'sine';
 	if (test === 'classical_shock') return 'shock';
 	return 'signals';
