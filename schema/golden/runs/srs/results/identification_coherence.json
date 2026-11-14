@@ -1,0 +1,32 @@
+{
+  "name": "identification_coherence",
+  "kind": "coherence",
+  "abscissa": {
+    "kind": "frequency",
+    "unit": "Hz",
+    "start": 200.0,
+    "step": 8.0
+  },
+  "channels": {
+    "responses": [
+      1
+    ],
+    "references": [
+      3
+    ]
+  },
+  "description": "identification: ordinary coherence, drive to control response",
+  "arrays": [
+    {
+      "name": "values",
+      "dtype": "f8",
+      "shape": [
+        1,
+        1,
+        76
+      ],
+      "unit": "",
+      "offset": 0
+    }
+  ]
+}

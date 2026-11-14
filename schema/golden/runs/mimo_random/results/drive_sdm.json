@@ -1,0 +1,46 @@
+{
+  "name": "drive_sdm",
+  "kind": "cpsd",
+  "abscissa": {
+    "kind": "frequency",
+    "unit": "Hz",
+    "start": 160.0,
+    "step": 2.0
+  },
+  "channels": {
+    "responses": [
+      5,
+      6,
+      7,
+      8
+    ],
+    "references": [
+      5,
+      6,
+      7,
+      8
+    ]
+  },
+  "band": [
+    80,
+    84
+  ],
+  "convention": "file",
+  "description": "the drives' full spectral matrix in force at full level, at the same loops",
+  "records": {
+    "index": "loop_index"
+  },
+  "arrays": [
+    {
+      "name": "values",
+      "dtype": "c16",
+      "shape": [
+        4,
+        4,
+        4
+      ],
+      "unit": "V^2/Hz",
+      "offset": 0
+    }
+  ]
+}

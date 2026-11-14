@@ -8,8 +8,8 @@
 //! The recording a run keeps on disk is made elsewhere: a test service pushes samples
 //! to `hertzforge_capture::CaptureSink`, which writes a raw interleaved f32 stream
 //! (`telemetry.f32`) and a JSON sidecar (`capture.json`) on its own writer thread.
-//! There is no HDF5 writer. A MIMO Random run folder can be converted to a `.hforge`
-//! file afterwards, by the Python function `hertzforge.io.mimo_run_convert.convert`.
+//! There is no HDF5 writer. A run folder is converted to a `.hforge` file afterwards,
+//! by the Python function `hertzforge.io.run_convert.convert`.
 //!
 //! A sink that cannot take a block returns [`CaptureError::WouldBlock`]; the scheduler
 //! drops that block and goes on, never blocking the loop. The scheduler does not mark

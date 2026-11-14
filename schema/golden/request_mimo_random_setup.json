@@ -5,6 +5,16 @@
  "params": {
   "setup": {
    "title": "Two-Axis Random",
+   "operator": "A. Operator",
+   "article": "Bracket, serial 7",
+   "notes": "first article",
+   "specification": {
+    "document": "Test procedure 12",
+    "clause": "4.2"
+   },
+   "record": {
+    "streams": true
+   },
    "channels": {
     "controls": [
      {

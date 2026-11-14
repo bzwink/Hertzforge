@@ -177,21 +177,20 @@ reads under the target is held there on purpose: it still alarms, but it does no
 passing. A band over the target, or outside the abort band, still does. Once planned, the notch shows here and on the run: how many bands
 it notched and the worst prediction before and after.
 
-## Capture
+## The Run Record
 
-The capture can start when the run arms; fields kept with the run (a run number, an operator) are
-listed here. With it on, the run folder goes under the program's local data folder and is named
-`srs_run_` and the time the run armed, in seconds (a run name given here is not used); when that
-name is taken, the run gets the next free one. It holds:
-
-- the control channel's record of each pulse, one after another at the station rate, with the
-  channel table and the run's settings beside it. Only the control channel is recorded; the limit
-  channels, the identification burst and the drive are not.
-- the control law's record (`law.json`) and every call made to it (`law_pulses.bin` and
-  `law_pulses.jsonl`): the pulse it followed, the target and measured spectra it was given, the
-  gains it returned and what was applied.
-
-With capture off, nothing is written to disk.
+Fields kept with the run (a run number, an operator) are listed here. Every run is recorded in a
+run folder from the moment it arms, as a Random run is (`docs/run-folder.md`, "What an SRS Run
+Saves"). The **Run Record** panel takes the operator, the test article, the specification document
+and clause, and notes, and whether the folder keeps the time histories: every enabled input and the
+drive, a shot for identification and one for each pulse. With them off, the setup, the table, the
+log, the target with its envelope, the synthesis, the identification and every pulse's results are
+still kept. A run whose folder cannot be written does not arm, and says which folder and why. Once
+armed, the run card names the folder; when recording has a problem the card says so and the run
+goes on. A finished run's end line offers **Open in Analysis**, which converts the folder and opens
+its data in the Shock workspace (each pulse's time history and SRS, the target and its alarm and
+abort bands, the identification), and **Copy Folder Path**. The run has no capture of its own any
+more: the run folder is the one record.
 
 ## The Run
 

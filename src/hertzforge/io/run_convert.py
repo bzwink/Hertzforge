@@ -3,9 +3,9 @@
 `convert` reads a run folder (`hertzforge.io.run_folder`) and writes a
 `.hforge` project every analysis tool opens with `Project.open`, by
 default `<run name>.hforge` inside the folder. The control service's
-Random, Sine, Classical Shock and Explorer modules and its Recorder write
-a run folder for every run; the other control modules do not yet. This
-is the analysis side of that bridge.
+Random, MIMO Random, Sine, Classical Shock, SRS shock, TWR and Explorer
+modules and its Recorder write a run folder for every run; the other
+control modules do not yet. This is the analysis side of that bridge.
 
 The project holds, in this order:
 
@@ -18,7 +18,10 @@ The project holds, in this order:
   A recording's time is measured from its trigger, so its pre-trigger
   samples are at negative times; a pulse module's stream is one record
   per shot, timed from its firing, with a history for each kind of shot
-  (a Classical Shock run's identification, its pulses). The samples are
+  (a shock run's identification, its pulses; a TWR run's identification,
+  its plays, each timed from its section's start, and a play cut short in
+  a history of its own); a shot that holds no frames (a pulse withheld
+  before it played) is no record. The samples are
   copied a block at a time, float32 as recorded
   (`native.StreamedHistory`);
 - the `Specification` a Random run was controlled to, from the setup's
@@ -27,6 +30,12 @@ The project holds, in this order:
   controlled to, one tone over the control channels, from the profile
   as the service resolved it on the run's band (`results/reference`),
   with its alarm and abort bands as the tone's warning and abort limits;
+  for a MIMO Random run, the reference spectral density matrix it was
+  controlled to (`results/reference`, kind `sdm_reference`), a
+  `Specification` with its cross terms, each controlled channel's
+  alarm and abort lines as its warning and abort limits (a reference
+  in virtual degrees of freedom, which are not channels, stays in the
+  run record as arrays);
 - for a Sine sweep or step test, a `SineLevelSet` of the inputs' tracked
   levels (a result of kind `sine_levels`): the last one-way sweep at the
   highest level the run reached, as one `SineLevel` of that tone over
@@ -39,7 +48,12 @@ The project holds, in this order:
   conj(X) Y, so nothing is conjugated here);
 - an `Srs` per result of kind `srs` (a record per pulse), and a
   `ShockSpecification` per result of kind `srs_reference`, its band as
-  the warning limits, in SI at the result's Q;
+  the warning limits and its abort band (where it has one) as the abort
+  limits, in SI at the result's Q;
+- the `TransientSpecification` a TWR run was controlled to, from its
+  result of kind `transient_reference` (the prepared section between its
+  pads at full level, time from the section's start), in SI; it has no
+  limits, so its alarm and abort shares stay in the result's description;
 - the `RunRecord`: the manifest, the table and setup as written, the
   law, the log, the end, each stream's and result's description, the
   arrays of results no analysis class holds (an Explorer run's survey
@@ -76,11 +90,19 @@ PROJECT_TYPES = {'random': 'Random Vibration', 'mimo_random': 'Random Vibration'
 
 #: the result kinds that become an analysis object; any other is kept in
 #: the run record as named arrays
-ANALYSIS_KINDS = ('psd', 'cpsd', 'frf', 'coherence', 'srs', 'srs_reference', 'sine_levels')
+ANALYSIS_KINDS = ('psd', 'cpsd', 'frf', 'coherence', 'srs', 'srs_reference', 'sine_levels',
+                  'sdm_reference', 'transient_reference')
 
 #: the arrays of a result kind its analysis object holds (its abscissa
 #: besides); the rest are kept in the run record
-_HELD_ARRAYS = {'srs_reference': ('reference', 'band_low', 'band_high')}
+_HELD_ARRAYS = {'srs_reference': ('reference', 'band_low', 'band_high', 'abort_low',
+                                   'abort_high'),
+                'sdm_reference': ('alarm_upper', 'alarm_lower', 'abort_upper', 'abort_lower'),
+                'transient_reference': ('reference',)}
+
+#: a MIMO Random reference's limit arrays, by the limit each becomes
+_SDM_LIMITS = {'warning_upper': 'alarm_upper', 'warning_lower': 'alarm_lower',
+               'abort_upper': 'abort_upper', 'abort_lower': 'abort_lower'}
 
 #: the name of the one tone a Sine run's specification and levels hold
 SINE_TONE = 'Tone 1'
@@ -416,6 +438,8 @@ def _shot_spans(stream: run_folder.Stream
             continue
         at = int(shot.get('first_frame', 0))
         frames = max(0, min(int(shot.get('frames', 0)), stream.frames - at))
+        if frames == 0:
+            continue
         pre = shot.get('pre_frames')
         t0 = -pre / stream.rate if isinstance(pre, int) else 0.0
         spans.append((at, frames, t0, shot.get('level_db'), shot))
@@ -423,10 +447,14 @@ def _shot_spans(stream: run_folder.Stream
 
 
 def _shot_label(k: int, shot: Mapping[str, Any]) -> str:
-    """A shot's record label: its pulse ('pulse 3') where it names one,
-    else its place in the stream ('shot 1')."""
-    pulse = shot.get('pulse')
-    return f'pulse {pulse + 1}' if isinstance(pulse, int) else f'shot {k + 1}'
+    """A shot's record label: its pulse ('pulse 3') or its play ('play
+    3') where it names one, counted from 1, else its place in the stream
+    ('shot 1')."""
+    for name in ('pulse', 'play'):
+        number = shot.get(name)
+        if isinstance(number, int) and not isinstance(number, bool):
+            return f'{name} {number + 1}'
+    return f'shot {k + 1}'
 
 
 def _shot_groups(spans: Sequence[tuple[int, int, float, Any, Mapping[str, Any]]]
@@ -499,9 +527,13 @@ def _histories(run: run_folder.RunFolder, table: Any, lacked: list[str],
         whats = [str(spans[g[0]][4].get('what') or '') for g in groups]
         for members, what in zip(groups, whats, strict=True):
             labels = [_shot_label(k, spans[k][4]) for k in members]
-            said = [label + (f' ({what})' if what and what != 'pulse' else '')
+            said = [label + (f' ({what})' if what and what not in ('pulse', 'play') else '')
+                    + (f' ({spans[k][4]["kind"]})' if isinstance(spans[k][4].get('kind'), str)
+                       else '')
                     + (f' at {level_text(float(spans[k][3]))}'
                        if isinstance(spans[k][3], (int, float)) else '')
+                    + (f', {spans[k][4]["outcome"]}'
+                       if spans[k][4].get('outcome') not in (None, 'judged') else '')
                     for k, label in zip(members, labels, strict=True)]
             comments = ['; '.join(part for part in (shot, note) if part)
                         for _c in range(width) for shot in said]
@@ -841,8 +873,9 @@ def _srs_object(result: run_folder.Result, table: Any,
     """An SRS result as the analysis holds it, or (None, why not): a
     result of kind `srs` an `Srs`, a record per pulse where it repeats; a
     result of kind `srs_reference` (a nominal SRS and its tolerance band)
-    a `ShockSpecification` with the band as its warning limits. In SI,
-    at the result's Q and type."""
+    a `ShockSpecification` with the band as its warning limits and an
+    abort band, where the result has one, as its abort limits. In SI, at
+    the result's Q and type."""
     from ..core.data import ShockSpecification, Srs
     from ..units import UNKNOWN, si_transform
 
@@ -892,11 +925,93 @@ def _srs_object(result: run_folder.Result, table: Any,
     if not spec:
         return Srs(**kwargs), ''
     limits = {}
-    for array, limit in (('band_low', 'warning_lower'), ('band_high', 'warning_upper')):
+    for array, limit in (('band_low', 'warning_lower'), ('band_high', 'warning_upper'),
+                         ('abort_low', 'abort_lower'), ('abort_high', 'abort_upper')):
         if array in result.arrays:
             limits[limit] = np.asarray(result.arrays[array], dtype=np.float64).reshape(
                 1, -1) * factor
     return ShockSpecification(**kwargs, **limits), ''
+
+
+def _sdm_specification(result: run_folder.Result, table: Any,
+                       units: Mapping[int, str]) -> tuple[Any, str]:
+    """A MIMO Random reference (kind `sdm_reference`) as the analysis
+    holds a target, or (None, why not): a `Specification` with a record
+    per autospectrum and per cross term above the diagonal, in SI and in
+    the file's convention as written, its controlled channels' alarm and
+    abort lines (spectral densities) as the warning and abort limits of
+    their autospectra; a cross term has no limit (NaN)."""
+    from ..core.data import Specification
+    from ..units import UNKNOWN
+
+    channels = result.description.get('channels') or {}
+    responses = [int(i) for i in channels.get('responses') or []]
+    if not responses or any(i not in units for i in responses):
+        return None, ('it names degrees of freedom, which are not channels of the table'
+                      if channels.get('dofs') else
+                      'it does not name its controlled channels in the table')
+    values = np.asarray(result.arrays.get('values'))
+    n = len(responses)
+    if values.ndim != 3 or values.shape[:2] != (n, n):
+        return None, f'its values are {values.shape}, not {n} by {n} by lines'
+    lines = values.shape[-1]
+    abscissa = _abscissa(result, lines)
+    if abscissa is None or len(abscissa) != lines:
+        return None, 'its abscissa is not stated, or not as long as its values'
+    scales = [_unit_scale(units[i]) for i in responses]
+    if any(s[1] == UNKNOWN for s in scales):
+        return None, 'a controlled channel is in a unit the analysis does not read'
+    dofs = table.dof_strings()
+    row = {int(i): k for k, i in enumerate(table['channel'])}
+    pairs = [(a, b) for a in range(n) for b in range(a, n)]
+    ordinate = np.array([values[a, b] * scales[a][0] * scales[b][0] for a, b in pairs])
+    limits = {}
+    for limit, array in _SDM_LIMITS.items():
+        if array not in result.arrays:
+            continue
+        given = np.asarray(result.arrays[array], dtype=np.float64)
+        limits[limit] = np.array([given[a] * scales[a][0] ** 2 if a == b
+                                  else np.full(lines, np.nan) for a, b in pairs])
+    dims = [(f'{scales[a][1]}**2/frequency' if scales[a][1] == scales[b][1]
+             else f'{scales[a][1]}*{scales[b][1]}/frequency') for a, b in pairs]
+    spec = Specification(
+        abscissa=abscissa, ordinate=ordinate,
+        response_dof=[dofs[row[responses[a]]] for a, _b in pairs],
+        reference_dof=[dofs[row[responses[b]]] for _a, b in pairs],
+        ordinate_dim=dims, ordinate_unit=[scales[a][2] for a, _b in pairs],
+        reference_unit=[scales[b][2] if scales[a][2] != scales[b][2] else None
+                        for a, b in pairs],
+        comment=result.description.get('description', '') or result.name, **limits)
+    spec.interpolation = Specification.reading_of(abscissa)
+    return spec, ''
+
+
+def _transient_specification(result: run_folder.Result, table: Any,
+                             units: Mapping[int, str]) -> tuple[Any, str]:
+    """A TWR run's target as the analysis holds a required waveform, or
+    (None, why not): a `TransientSpecification` of its control channel,
+    in SI, against time from the section's start."""
+    from ..core.data import TransientSpecification
+    from ..units import UNKNOWN
+
+    channels = result.description.get('channels') or {}
+    responses = [int(i) for i in channels.get('responses') or []]
+    if len(responses) != 1 or responses[0] not in units:
+        return None, 'it does not name one response channel the table holds'
+    if 'reference' not in result.arrays:
+        return None, 'it holds no array named reference'
+    values = np.asarray(result.arrays['reference'], dtype=np.float64).reshape(-1)
+    abscissa = _abscissa(result, len(values))
+    if abscissa is None or len(abscissa) != len(values):
+        return None, 'its abscissa is not stated, or not as long as its values'
+    channel = responses[0]
+    scale, dim, unit = _unit_scale(units[channel])
+    known = dim != UNKNOWN
+    dof = table.dof_strings()[{int(i): k for k, i in enumerate(table['channel'])}[channel]]
+    return TransientSpecification(
+        abscissa, values[np.newaxis] * (scale if known else 1.0), response_dof=[dof],
+        ordinate_dim=[dim], ordinate_unit=[unit if known else None],
+        comment=result.description.get('description', '') or result.name), ''
 
 
 # ---- the conversion ----------------------------------------------------
@@ -962,13 +1077,23 @@ def convert(path: str | os.PathLike, output: str | os.PathLike | None = None,
     objects: dict[str, Any] = {'Channel Table': table}
     for name, history in _histories(run, table, lacked, progress):
         objects[_unique(name, objects)] = history
+    units = {int(row['index']): str(row.get('units', '') or '') for row in run.rows}
     if run.test == 'sine':
         spec = _sine_specification(run, table, lacked)
+    elif run.test == 'mimo_random':
+        spec = None
+        reference = run.results.get('reference')
+        if reference is None:
+            lacked.append('the run has no reference (results/reference), so it has no '
+                          'specification')
+        elif reference.kind == 'sdm_reference':
+            spec, why = _sdm_specification(reference, table, units)
+            if spec is None:
+                lacked.append(f'the reference is kept as arrays in the run record: {why}')
     else:
         spec = _specification(run, table, lacked)
     if spec is not None:
         objects[_unique('Specification', objects)] = spec
-    units = {int(row['index']): str(row.get('units', '') or '') for row in run.rows}
     descriptions: dict[str, dict[str, Any]] = {}
     unmapped: dict[str, dict[str, np.ndarray]] = {}
     for name, result in run.results.items():
@@ -989,7 +1114,33 @@ def convert(path: str | os.PathLike, output: str | os.PathLike | None = None,
                 continue
             unmapped[name] = dict(result.arrays)
             continue
-        if result.kind in ('srs', 'srs_reference'):
+        if result.kind == 'transient_reference':
+            held, why = _transient_specification(result, table, units)
+            if held is not None:
+                # a target, not a measurement: it carries no source label
+                objects[_unique('Specification', objects)] = held
+                extra = {k: v for k, v in result.arrays.items()
+                         if k not in ('reference', 'time')}
+                if extra:
+                    unmapped[name] = extra
+                continue
+            lacked.append(f'the result {name!r} is kept as arrays in the run record: {why}')
+            unmapped[name] = dict(result.arrays)
+            continue
+        if result.kind == 'sdm_reference':
+            # the run's own reference is the Specification above; another
+            # (the reference after controls were excluded) is one of its own
+            if name == 'reference' and spec is not None:
+                extra = {k: v for k, v in result.arrays.items()
+                         if k not in ('values', *_HELD_ARRAYS['sdm_reference'])}
+                if extra:
+                    unmapped[name] = extra
+                continue
+            if name == 'reference':
+                unmapped[name] = dict(result.arrays)
+                continue
+            held, why = _sdm_specification(result, table, units)
+        elif result.kind in ('srs', 'srs_reference'):
             held, why = _srs_object(result, table, units)
         elif result.kind in ANALYSIS_KINDS:
             held, why = _analysis_object(result, table, units)
@@ -998,7 +1149,9 @@ def convert(path: str | os.PathLike, output: str | os.PathLike | None = None,
                 lacked.append(f'the result {name!r} is kept as arrays in the run record: {why}')
             unmapped[name] = dict(result.arrays)
             continue
-        held.source = run.source
+        if result.kind != 'sdm_reference':
+            # a reference is what the run was asked for, not a measurement
+            held.source = run.source
         objects[_unique(name, objects)] = held
         abscissa = (result.description.get('abscissa') or {}).get('array')
         kept = ('values', abscissa, *_HELD_ARRAYS.get(result.kind, ()))

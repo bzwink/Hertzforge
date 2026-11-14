@@ -227,8 +227,9 @@ async fn wait_mimo(c: &mut Client, what: &str, pred: impl Fn(&Value) -> bool) ->
     c.events[i].data().clone()
 }
 
-/// The settings a run recorded with itself (`capture.json` under the records
-/// root), the newest first.
+/// The settings a run recorded with itself: the controller's own settings in the run
+/// folder's `setup.json` (`resolved.controller`) under the records root, the newest
+/// first.
 fn recorded_config(root: &Path) -> Value {
     fn walk(dir: &Path, out: &mut Vec<PathBuf>) {
         if let Ok(rd) = std::fs::read_dir(dir) {
@@ -236,7 +237,7 @@ fn recorded_config(root: &Path) -> Value {
                 let p = e.path();
                 if p.is_dir() {
                     walk(&p, out);
-                } else if p.file_name().is_some_and(|n| n == "capture.json") {
+                } else if p.file_name().is_some_and(|n| n == "setup.json") {
                     out.push(p);
                 }
             }
@@ -247,10 +248,7 @@ fn recorded_config(root: &Path) -> Value {
     found.sort_by_key(|p| std::fs::metadata(p).and_then(|m| m.modified()).ok());
     let path = found.last().expect("the run recorded its settings");
     let v: Value = serde_json::from_str(&std::fs::read_to_string(path).unwrap()).unwrap();
-    // The run's settings travel as a JSON string in the sidecar's `run_config_json`.
-    let settings: Value =
-        serde_json::from_str(v["run_config_json"].as_str().expect("the run's settings")).unwrap();
-    settings["config"].clone()
+    v["resolved"]["controller"].clone()
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]

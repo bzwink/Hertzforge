@@ -1,0 +1,33 @@
+{
+  "run_uid": "golden-srs",
+  "end": {
+    "outcome": "completed",
+    "message": "The schedule finished.",
+    "at_s": 30.0,
+    "level_db": 0,
+    "pulse": 1,
+    "trip": null
+  },
+  "at_unix": 1794240060.25,
+  "station_frames": 1497,
+  "summary": {
+    "pulses_fired": 2,
+    "pulses_passed": 1,
+    "elapsed_s": 30.0,
+    "level_db": 0.0
+  },
+  "streams": {
+    "inputs": {
+      "frames": 1497,
+      "drops": 0,
+      "gaps": 0,
+      "fault": null
+    },
+    "drives": {
+      "frames": 1497,
+      "drops": 0,
+      "gaps": 0,
+      "fault": null
+    }
+  }
+}

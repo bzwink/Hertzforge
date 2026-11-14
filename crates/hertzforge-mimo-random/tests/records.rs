@@ -166,3 +166,77 @@ fn the_reference_record_states_its_band_in_hertz_beside_the_line_indexes() {
     assert_eq!((band, df), ((40, 376), 4.0));
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+/// What a host that records the run itself takes (`keep_for_record`) is what the
+/// module's own records hold, loop for loop and call for call: the same loops with
+/// the same summaries, diagonals and errors, the same law calls with the same
+/// inputs and outputs. And it costs the loop no file work: the loop's time with the
+/// module's own records on (written, appended and synced on the loop's thread) and
+/// with only the copies kept is printed, the numbers the run record's move is
+/// judged by. Red if a loop or a call were kept differently from the records.
+#[test]
+fn mimo_random_kept_copies_match_the_module_records_loop_for_loop() {
+    use hertzforge_mimo_random::records::read_law_calls;
+    use std::time::Instant;
+    let grid = Grid::standard();
+    let p = StandardPlant::Modal4x4.build();
+    let (mut cfg, table) = physical_config(&p, &grid, 0.5);
+    cfg.full_level_duration_s = Some(40.0);
+    let timed = |records: bool, keep: bool, tag: &str| {
+        let mut c = cfg.clone();
+        c.records.enabled = records;
+        let mut svc = service(c, table.clone(), &p, &grid, tag);
+        svc.keep_for_record(keep);
+        let st = svc.run_auto(0).expect("engages");
+        assert_eq!(st, MimoState::Engaged);
+        let mut kept = svc.take_kept();
+        let mut spent = Vec::new();
+        while svc.state().is_running() {
+            let t0 = Instant::now();
+            if !svc.loop_tick().expect("a loop") {
+                break;
+            }
+            spent.push(t0.elapsed().as_secs_f64() * 1e3);
+            let more = svc.take_kept();
+            kept.loops.extend(more.loops);
+            kept.law_calls.extend(more.law_calls);
+        }
+        let more = svc.take_kept();
+        kept.loops.extend(more.loops);
+        kept.law_calls.extend(more.law_calls);
+        let mean = spent.iter().sum::<f64>() / spent.len().max(1) as f64;
+        (svc, kept, mean)
+    };
+    let (svc, kept, both_ms) = timed(true, true, "keep-both");
+    let dir = run_dir(svc.data_root());
+    let text = std::fs::read_to_string(dir.join(LOOPS_SUMMARY)).unwrap();
+    let rows: Vec<&str> = text.lines().collect();
+    assert!(kept.loops.len() >= 3, "{}", kept.loops.len());
+    assert_eq!(kept.loops.len(), rows.len());
+    for (k, r) in kept.loops.iter().zip(&rows) {
+        // the line as the records wrote it, the same summary to the last digit
+        assert_eq!(&serde_json::to_string(&k.summary).unwrap(), r);
+    }
+    let last = kept.loops.last().unwrap();
+    assert_eq!(last.response_full.as_ref(), svc.response_full_level());
+    assert_eq!(&last.drive_full, svc.drive_full_level());
+    let calls = read_law_calls(&dir).unwrap();
+    assert_eq!(kept.law_calls.len(), calls.len());
+    for (k, c) in kept.law_calls.iter().zip(&calls) {
+        assert_eq!((k.seed, k.loop_index), (c.seed, c.loop_index));
+        assert_eq!(k.response, c.inputs.response);
+        assert_eq!(k.frf, c.inputs.frf);
+        assert_eq!(k.last_drive, c.inputs.last_drive);
+        assert_eq!(
+            k.outcome.as_ref().map(|o| &o.drive).ok(),
+            c.outcome.as_ref().map(|o| &o.drive).ok()
+        );
+    }
+    let (_, _, records_ms) = timed(true, false, "keep-records");
+    let (_, kept_only, kept_ms) = timed(false, true, "keep-only");
+    assert_eq!(kept_only.loops.len(), kept.loops.len());
+    println!(
+        "a loop on the loop's thread: {records_ms:.2} ms with the module's own records written \
+         there, {kept_ms:.2} ms with only the copies kept ({both_ms:.2} ms with both)"
+    );
+}

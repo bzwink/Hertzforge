@@ -5,12 +5,14 @@
 	 * card with the law, the play table and the station. The plots are the service's views as they
 	 * come: the last play's records against time over the record, the identification against
 	 * frequency, each play's error against the play index. The coherence hold shows as a line in the
-	 * Run card. The window on another monitor shows the same, compact.
+	 * Run card. From arm on the Run card names the run's folder, and a finished run's end line opens
+	 * it in Transient Analysis. The window on another monitor shows the same, compact.
 	 */
 	import type { Snippet } from 'svelte';
 	import LawLine from '../pulse/LawLine.svelte';
 	import PulseRunView from '../pulse/PulseRunView.svelte';
 	import RunLine from '../pulse/RunLine.svelte';
+	import type { RunOpen } from '../runOpen.svelte';
 	import type { PlotPanel } from '../screen/screen.svelte';
 	import type { CardKind } from '../screen/types';
 	import TwrLevelCard from './TwrLevelCard.svelte';
@@ -28,8 +30,10 @@
 		onoverride?: () => void;
 		abortKeys: string;
 		compact?: boolean;
+		/** A finished run's way to its data on the analysis side; absent in a window that only watches. */
+		opener?: RunOpen | null;
 	}
-	let { twr, views, station, onpopout, onoverride, abortKeys, compact = false }: Props = $props();
+	let { twr, views, station, onpopout, onoverride, abortKeys, compact = false, opener = null }: Props = $props();
 
 	const status = $derived(twr.now);
 	const state = $derived(status?.state ?? null);
@@ -111,4 +115,6 @@
 	{onoverride}
 	{abortKeys}
 	{compact}
+	record={twr.runRecord}
+	{opener}
 />

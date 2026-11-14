@@ -1,0 +1,88 @@
+{
+  "name": "pulse_srs",
+  "kind": "srs",
+  "abscissa": {
+    "kind": "frequency",
+    "unit": "Hz",
+    "array": "frequency"
+  },
+  "channels": {
+    "responses": [
+      1
+    ]
+  },
+  "srs_kind": "maximax",
+  "description": "each pulse's SRS, and the target at the level fired with the envelope's alarm band (band) and abort band (abort)",
+  "records": {
+    "index": "record",
+    "pulse": "the pulse, from 0",
+    "level_db": "the level fired",
+    "frame": "the station frame when it was kept"
+  },
+  "arrays": [
+    {
+      "name": "frequency",
+      "dtype": "f8",
+      "shape": [
+        7
+      ],
+      "unit": "Hz",
+      "offset": 0
+    },
+    {
+      "name": "values",
+      "dtype": "f8",
+      "shape": [
+        1,
+        7
+      ],
+      "unit": "g",
+      "offset": 56
+    },
+    {
+      "name": "reference",
+      "dtype": "f8",
+      "shape": [
+        7
+      ],
+      "unit": "g",
+      "offset": 112
+    },
+    {
+      "name": "band_low",
+      "dtype": "f8",
+      "shape": [
+        7
+      ],
+      "unit": "g",
+      "offset": 168
+    },
+    {
+      "name": "band_high",
+      "dtype": "f8",
+      "shape": [
+        7
+      ],
+      "unit": "g",
+      "offset": 224
+    },
+    {
+      "name": "abort_low",
+      "dtype": "f8",
+      "shape": [
+        7
+      ],
+      "unit": "g",
+      "offset": 280
+    },
+    {
+      "name": "abort_high",
+      "dtype": "f8",
+      "shape": [
+        7
+      ],
+      "unit": "g",
+      "offset": 336
+    }
+  ]
+}

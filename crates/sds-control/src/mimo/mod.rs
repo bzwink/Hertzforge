@@ -13,6 +13,7 @@
 //!   that do not need the controller's service.
 //! - [`view`]: the status, prediction and report objects.
 //! - [`display`]: the display quantities, their selectors and decimation.
+//! - [`record`]: what a run puts in its run folder (`docs/run-folder.md`).
 //! - [`law_check`]: the check of a MIMO law on the simulated test articles before it
 //!   drives hardware (`laws.check`).
 //! - [`reference`]: the reference builders, readers and checks on the wire
@@ -23,6 +24,7 @@ pub mod check;
 pub mod display;
 pub mod driver;
 pub mod law_check;
+pub mod record;
 pub mod reference;
 pub mod setup;
 pub mod sim;

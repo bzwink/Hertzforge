@@ -1,0 +1,158 @@
+{
+  "revision": 2,
+  "sha256": "dd52687e5e448e776a3d71c415ccd3aa555a90d5c15a70071cdf6ba91a5931e4",
+  "rows": [
+    {
+      "index": 1,
+      "enabled": true,
+      "description": "Control 1",
+      "role": "control",
+      "physical": null,
+      "interface": "single_ended",
+      "iepe_bias_v": null,
+      "units": "g",
+      "sensitivity_mv_per_eu": 100,
+      "range_max": 5000,
+      "polarity": "positive",
+      "control_group": null,
+      "abort": {
+        "accel_g": null,
+        "velocity_ips": null,
+        "displacement_mil": null
+      }
+    },
+    {
+      "index": 2,
+      "enabled": true,
+      "description": "Control 2",
+      "role": "control",
+      "physical": null,
+      "interface": "single_ended",
+      "iepe_bias_v": null,
+      "units": "g",
+      "sensitivity_mv_per_eu": 100,
+      "range_max": 5000,
+      "polarity": "positive",
+      "control_group": null,
+      "abort": {
+        "accel_g": null,
+        "velocity_ips": null,
+        "displacement_mil": null
+      }
+    },
+    {
+      "index": 3,
+      "enabled": true,
+      "description": "Control 3",
+      "role": "control",
+      "physical": null,
+      "interface": "single_ended",
+      "iepe_bias_v": null,
+      "units": "g",
+      "sensitivity_mv_per_eu": 100,
+      "range_max": 5000,
+      "polarity": "positive",
+      "control_group": null,
+      "abort": {
+        "accel_g": null,
+        "velocity_ips": null,
+        "displacement_mil": null
+      }
+    },
+    {
+      "index": 4,
+      "enabled": true,
+      "description": "Control 4",
+      "role": "control",
+      "physical": null,
+      "interface": "single_ended",
+      "iepe_bias_v": null,
+      "units": "g",
+      "sensitivity_mv_per_eu": 100,
+      "range_max": 5000,
+      "polarity": "positive",
+      "control_group": null,
+      "abort": {
+        "accel_g": null,
+        "velocity_ips": null,
+        "displacement_mil": null
+      }
+    },
+    {
+      "index": 5,
+      "enabled": true,
+      "description": "Shaker 1",
+      "role": "drive",
+      "physical": null,
+      "interface": "single_ended",
+      "iepe_bias_v": null,
+      "units": "V",
+      "sensitivity_mv_per_eu": 1000,
+      "range_max": 10,
+      "polarity": "positive",
+      "control_group": null,
+      "abort": {
+        "accel_g": null,
+        "velocity_ips": null,
+        "displacement_mil": null
+      }
+    },
+    {
+      "index": 6,
+      "enabled": true,
+      "description": "Shaker 2",
+      "role": "drive",
+      "physical": null,
+      "interface": "single_ended",
+      "iepe_bias_v": null,
+      "units": "V",
+      "sensitivity_mv_per_eu": 1000,
+      "range_max": 10,
+      "polarity": "positive",
+      "control_group": null,
+      "abort": {
+        "accel_g": null,
+        "velocity_ips": null,
+        "displacement_mil": null
+      }
+    },
+    {
+      "index": 7,
+      "enabled": true,
+      "description": "Shaker 3",
+      "role": "drive",
+      "physical": null,
+      "interface": "single_ended",
+      "iepe_bias_v": null,
+      "units": "V",
+      "sensitivity_mv_per_eu": 1000,
+      "range_max": 10,
+      "polarity": "positive",
+      "control_group": null,
+      "abort": {
+        "accel_g": null,
+        "velocity_ips": null,
+        "displacement_mil": null
+      }
+    },
+    {
+      "index": 8,
+      "enabled": true,
+      "description": "Shaker 4",
+      "role": "drive",
+      "physical": null,
+      "interface": "single_ended",
+      "iepe_bias_v": null,
+      "units": "V",
+      "sensitivity_mv_per_eu": 1000,
+      "range_max": 10,
+      "polarity": "positive",
+      "control_group": null,
+      "abort": {
+        "accel_g": null,
+        "velocity_ips": null,
+        "displacement_mil": null
+      }
+    }
+  ]
+}

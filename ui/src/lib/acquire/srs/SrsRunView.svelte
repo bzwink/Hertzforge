@@ -3,12 +3,14 @@
 	 * The SRS shock run as it happens, on the test screen's frame: the pages of plots, and the dock
 	 * with the Run card (the shared verbs and the shock's own: Fire, the train and the burst, the
 	 * level moves), the level card with the law, the pulse table and the station. The SRS and Pulse
-	 * plots lay the pulses picked in the pulse table over the latest one. The window on another
-	 * monitor shows the same, compact.
+	 * plots lay the pulses picked in the pulse table over the latest one. From arm on the Run card
+	 * names the run's folder, and a finished run's end line opens it in the Shock workspace. The
+	 * window on another monitor shows the same, compact.
 	 */
 	import type { Snippet } from 'svelte';
 	import LawLine from '../pulse/LawLine.svelte';
 	import PulseRunView from '../pulse/PulseRunView.svelte';
+	import type { RunOpen } from '../runOpen.svelte';
 	import type { PlotPanel } from '../screen/screen.svelte';
 	import type { CardKind } from '../screen/types';
 	import ShockRunVerbs from '../shock/ShockRunVerbs.svelte';
@@ -26,8 +28,10 @@
 		onoverride?: () => void;
 		abortKeys: string;
 		compact?: boolean;
+		/** A finished run's way to its data on the analysis side; absent in a window that only watches. */
+		opener?: RunOpen | null;
 	}
-	let { srs, views, station, onpopout, onoverride, abortKeys, compact = false }: Props = $props();
+	let { srs, views, station, onpopout, onoverride, abortKeys, compact = false, opener = null }: Props = $props();
 
 	const status = $derived(srs.now);
 	const state = $derived(srs.run?.state ?? null);
@@ -89,4 +93,5 @@
 	{onoverride}
 	{abortKeys}
 	{compact}
+	{opener}
 />

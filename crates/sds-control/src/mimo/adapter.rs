@@ -30,10 +30,14 @@ use super::driver::{
     MimoStatus, OverrideAck, OverrideReason, PackedBlock, Prediction, QuantitySelector, Series,
     StartContext, StopOutcome,
 };
+use super::record::{self as mrec, Names};
 use super::setup::{ControlSpace, MimoSetup, RealMatrix, Reference};
 use crate::protocol::{ErrorCode, MethodError};
 use crate::random::backend::{Interruptible, ABORT, STOP};
-use crate::random::view::{End, State};
+use crate::random::record as rrec;
+use crate::random::view::{End, RecordRef, State};
+use crate::record::tap::{self, Recording};
+use crate::record::{LogHandle, ProblemFn, RecordOptions, RecordStatus, RunRecord};
 use crate::station::{self, NiScanner, StationPlan};
 use crate::table::{Item, Report};
 use crate::views::Role;
@@ -91,6 +95,8 @@ pub struct AdapterOptions {
     /// A law to run in place of the one the catalog resolves (a law built
     /// elsewhere, such as a law file resolved by the caller). `None` in service.
     pub law_factory: Option<Arc<dyn MimoLawFactory>>,
+    /// How the run's record is written (`docs/run-folder.md`).
+    pub record: RecordOptions,
 }
 
 impl AdapterOptions {
@@ -104,6 +110,7 @@ impl AdapterOptions {
             bind: "ws://127.0.0.1:0/".into(),
             catalog: None,
             law_factory: None,
+            record: RecordOptions::default(),
         }
     }
 }
@@ -653,8 +660,8 @@ struct Published {
     /// gate); `None`: every one.
     kept: Option<Vec<usize>>,
     report: Option<MimoReport>,
-    /// The identification set's record folder, once the run has written one.
-    ident_dir: Option<PathBuf>,
+    /// The run's identification set, once measured or loaded, for saving.
+    ident: Option<Arc<hertzforge_mimo_random::IdentificationSet>>,
 }
 
 /// How the operator asked the run to end (the first ask wins).
@@ -672,6 +679,48 @@ struct Shared {
     started: Mutex<Option<Instant>>,
     end_request: Mutex<Option<EndRequest>>,
     log: Mutex<Vec<String>>,
+    /// The run's record from arm on: every log entry is appended to it as it is made.
+    record_log: Mutex<Option<LogHandle>>,
+    /// The record's folder and status, for the run state.
+    record: Mutex<Option<(RecordRef, Arc<RecordStatus>)>>,
+    /// The record's log entries so far.
+    record_seq: AtomicU64,
+    /// Input frames the station has read since it started (the station frame).
+    station_frame: Arc<AtomicU64>,
+}
+
+impl Shared {
+    /// One line of the run's operator log, also appended to the record as `kind`.
+    fn log_line(&self, kind: &str, text: String) {
+        self.record_entry(kind, text.clone(), None);
+        lock(&self.log).push(text);
+    }
+
+    /// An entry of the record's log, made now: its order, the wall time, the station
+    /// frame, its kind, its words and its facts.
+    fn record_entry(&self, kind: &str, text: String, data: Option<Value>) {
+        let handle = lock(&self.record_log).clone();
+        if let Some(h) = handle {
+            h.append(self.entry_json(kind, text, data));
+        }
+    }
+
+    fn entry_json(&self, kind: &str, text: String, data: Option<Value>) -> Value {
+        let seq = self.record_seq.fetch_add(1, Ordering::SeqCst);
+        let frame = self.station_frame.load(Ordering::Relaxed);
+        let mut e = json!({"seq": seq, "at_unix": now_unix(), "frame": frame,
+                           "kind": kind, "text": text});
+        if let Some(d) = data.filter(|d| !d.is_null()) {
+            e["data"] = d;
+        }
+        e
+    }
+}
+
+fn now_unix() -> f64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0.0, |d| d.as_secs_f64())
 }
 
 fn lock<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
@@ -745,6 +794,7 @@ fn idle_status(law: LawRef) -> MimoStatus {
         excluded: Vec::new(),
         end: None,
         streaming: false,
+        record: None,
     }
 }
 
@@ -765,13 +815,17 @@ impl ServiceDriver {
                     snapshot: None,
                     kept: None,
                     report: None,
-                    ident_dir: None,
+                    ident: None,
                 }),
                 signal: Arc::new(AtomicU8::new(0)),
                 ramp: Mutex::new(None),
                 started: Mutex::new(None),
                 end_request: Mutex::new(None),
                 log: Mutex::new(Vec::new()),
+                record_log: Mutex::new(None),
+                record: Mutex::new(None),
+                record_seq: AtomicU64::new(0),
+                station_frame: Arc::new(AtomicU64::new(0)),
             }),
             law,
             tx: None,
@@ -785,10 +839,9 @@ impl ServiceDriver {
         lock(&self.shared.log).clone()
     }
 
-    /// The run's record folder holding its identification set, once identification
-    /// has been measured or loaded.
-    pub fn identification_dir(&self) -> Option<PathBuf> {
-        lock(&self.shared.published).ident_dir.clone()
+    /// The run's identification set, once identification has been measured or loaded.
+    pub fn identification(&self) -> Option<Arc<hertzforge_mimo_random::IdentificationSet>> {
+        lock(&self.shared.published).ident.clone()
     }
 
     fn ask<T>(&self, make: impl FnOnce(Reply<T>) -> Cmd, verb: &str) -> Result<T, MethodError> {
@@ -884,6 +937,7 @@ impl MimoRunDriver for ServiceDriver {
             report: None,
             pending_ident: self.pending_ident.clone(),
             kept: None,
+            keep: None,
         };
         std::thread::Builder::new()
             .name("mimo-random".into())
@@ -947,7 +1001,8 @@ impl MimoRunDriver for ServiceDriver {
 
     fn stop(&mut self, outcome: StopOutcome, by: &str) {
         self.request_end(outcome.name(), by);
-        lock(&self.shared.log).push(format!("{} by {by}", outcome.name()));
+        self.shared
+            .log_line("operator", format!("{} by {by}", outcome.name()));
         let phase = lock(&self.shared.published).status.phase;
         let ramp = lock(&self.shared.ramp).clone();
         let ramped = matches!(phase, "engaged" | "full_level" | "ramping_down")
@@ -964,7 +1019,8 @@ impl MimoRunDriver for ServiceDriver {
 
     fn abort(&mut self, by: &str) {
         self.request_end("operator_abort", by);
-        lock(&self.shared.log).push(format!("operator_abort by {by}"));
+        self.shared
+            .log_line("operator", format!("operator_abort by {by}"));
         if self.tx.is_some() {
             let _ = self.shared.signal.fetch_max(ABORT, Ordering::SeqCst);
         }
@@ -979,6 +1035,11 @@ impl MimoRunDriver for ServiceDriver {
             if s.end.is_none() {
                 s.elapsed_s = Some(t0.elapsed().as_secs_f64());
             }
+        }
+        if let Some((r, status)) = lock(&self.shared.record).as_ref() {
+            let mut r = r.clone();
+            r.problem = status.problem();
+            s.record = Some(r);
         }
         let asked = lock(&self.shared.end_request).is_some();
         if s.state.is_live() && asked && matches!(s.phase, "engaged" | "full_level") {
@@ -1017,11 +1078,13 @@ impl MimoRunDriver for ServiceDriver {
     }
 
     fn controller_lost(&mut self, name: &str) {
-        lock(&self.shared.log).push(format!("controller lost: {name}"));
+        self.shared
+            .log_line("operator", format!("controller lost: {name}"));
     }
 
     fn controller_back(&mut self, name: &str) {
-        lock(&self.shared.log).push(format!("controller back: {name}"));
+        self.shared
+            .log_line("operator", format!("controller back: {name}"));
     }
 
     fn load_identification(
@@ -1081,19 +1144,26 @@ impl MimoRunDriver for ServiceDriver {
             .with_detail(json!({"setup_hash": want, "identification_hash": set.setup_hash})));
         }
         self.pending_ident = Some(path.to_path_buf());
-        lock(&self.shared.log).push(format!("identification to load from {}", path.display()));
+        self.shared.log_line(
+            "operator",
+            format!("identification to load from {}", path.display()),
+        );
         Ok(info_of(path, &set))
     }
 
     fn save_identification(&mut self, path: &Path) -> Result<IdentificationInfo, MethodError> {
-        let Some(dir) = self.identification_dir() else {
+        let Some(set) = self.identification() else {
             let phase = lock(&self.shared.published).status.phase;
             return Err(wrong_state(
                 "Saving the identification set (none has been measured in this run yet)",
                 phase,
             ));
         };
-        hertzforge_mimo_random::records::copy_identification(&dir, path)
+        // The set the run holds in memory, written in the identification set's own
+        // form; the run's record keeps the same numbers as results.
+        std::fs::create_dir_all(path)
+            .map_err(|e| e.to_string())
+            .and_then(|()| hertzforge_mimo_random::records::write_identification(path, &set))
             .map_err(|e| MethodError::bad_params("path", format!("The set was not saved: {e}.")))?;
         let set = hertzforge_mimo_random::records::read_identification(path)
             .map_err(|e| MethodError::internal(format!("the saved set does not read back: {e}")))?;
@@ -1448,6 +1518,32 @@ struct Actor {
     /// The setup's control positions the run still controls, after some were
     /// excluded at the gate (`None`: every one).
     kept: Option<Vec<usize>>,
+    /// The run's record, from arm until the run ends.
+    keep: Option<Keeping>,
+}
+
+/// What the record is kept with while the run goes. Everything here only copies and
+/// sends to the record's writer: no file is opened, written or synced on this thread.
+struct Keeping {
+    record: RunRecord,
+    status: Arc<RecordStatus>,
+    run_uid: String,
+    table: ChannelTable,
+    band: (usize, usize),
+    df: f64,
+    /// The controller's events already in the record's log.
+    events_sent: usize,
+    ident_sent: bool,
+    law_seq: u64,
+    /// Whether `law_calls` holds the response-to-drive cross spectrum (decided by the
+    /// first call).
+    with_csd: Option<bool>,
+    loops: u64,
+    snapshots: Vec<u64>,
+    snapshot_every_s: f64,
+    since_snapshot_s: f64,
+    first_full_written: bool,
+    last_full: Option<(u64, HermitianStack, HermitianStack)>,
 }
 
 /// A service call that panicked: the run ends with the drive at zero.
@@ -1459,18 +1555,25 @@ impl Actor {
             if self.has_work() {
                 loop {
                     match rx.try_recv() {
-                        Ok(cmd) => self.handle(cmd),
+                        Ok(cmd) => {
+                            self.handle(cmd);
+                            self.record_tick();
+                        }
                         Err(TryRecvError::Empty) => break,
                         Err(TryRecvError::Disconnected) => return self.abandon(),
                     }
                 }
                 if self.has_work() {
                     self.step();
+                    self.record_tick();
                     self.publish();
                 }
             } else {
                 match rx.recv() {
-                    Ok(cmd) => self.handle(cmd),
+                    Ok(cmd) => {
+                        self.handle(cmd);
+                        self.record_tick();
+                    }
                     Err(_) => return self.abandon(),
                 }
             }
@@ -1688,8 +1791,11 @@ impl Actor {
             catalog_entry(&setup.law.id, &self.opts)
         };
         hardware_law_gate(ctx.kind, &setup.law.id, entry.as_ref())?;
-        let (cfg, loop_cfg) = config_of(&setup, &reference, choice)
+        let (mut cfg, loop_cfg) = config_of(&setup, &reference, choice)
             .map_err(|e| refused("arm_refused", format!("The setup could not be used: {e}.")))?;
+        // The run is recorded in its run folder through the record's own writer
+        // (`docs/run-folder.md`); the controller's own records stay off.
+        cfg.records.enabled = false;
         let table = ctx.table.clone().ok_or_else(|| {
             MethodError::internal("the MIMO run was started without the channel table")
         })?;
@@ -1705,6 +1811,7 @@ impl Actor {
             .filter(|c| c.enabled && c.role == ChannelRole::Drive)
             .count();
         let fs = setup.estimation.fs_hz;
+        let mut sim_identity = None;
         let built = if ctx.kind == "sim" {
             let plant = sim_plant_for(inputs, drives).ok_or_else(|| {
                 refused(
@@ -1729,6 +1836,7 @@ impl Actor {
                 },
                 ..StationSpec::default()
             };
+            sim_identity = Some(station::sim_identity(&spec.sim));
             hertzforge_station::try_build_station_backend(BackendKind::Sim, &spec)
                 .map_err(station::build_refusal)?
         } else {
@@ -1761,10 +1869,34 @@ impl Actor {
             );
         }
         let pace = (!hardware && self.opts.sim_speed > 0.0).then_some((fs, self.opts.sim_speed));
+        // The streams are taken where the station's blocks pass (record::tap): every
+        // enabled input as read and every drive as the device accepted it, the noise
+        // floor and the identification included. Their buffers are made here, before
+        // anything runs.
+        let caps = built.backend.caps();
+        let buffers = if setup.record.streams {
+            rrec::tap_buffers(fs, self.opts.record.stream_buffer_s)
+        } else {
+            1
+        };
+        let (inputs_tap, inputs_link) =
+            tap::pair(mrec::input_width(&table), rrec::TAP_BLOCK_FRAMES, buffers);
+        let (drives_tap, drives_link) =
+            tap::pair(mrec::drive_width(&table), rrec::TAP_BLOCK_FRAMES, buffers);
+        self.shared.station_frame.store(0, Ordering::SeqCst);
+        let recorded = Recording::wrap(
+            built.backend,
+            inputs_tap,
+            drives_tap,
+            self.shared.station_frame.clone(),
+        );
         let backend = RunStation::wrap(
-            Interruptible::wrap(built.backend, self.shared.signal.clone()),
+            Interruptible::wrap(recorded, self.shared.signal.clone()),
             pace,
         );
+        let class = built.station;
+        let provenance = built.provenance.clone();
+        let table_armed = table.clone();
         let mut loop_cfg = loop_cfg;
         if !hardware {
             loop_cfg.block_frames = 256;
@@ -1782,9 +1914,16 @@ impl Actor {
         if let Some(f) = self.opts.law_factory.clone().or(factory) {
             svc = svc.with_law_factory(f);
         }
+        let law_file_kept = if self.opts.law_factory.is_none() {
+            law_file.clone()
+        } else {
+            None
+        };
         if self.opts.law_factory.is_none() {
             svc.set_law_file(law_file);
         }
+        // Each loop and law call is kept for the record, taken between calls.
+        svc.keep_for_record(true);
         self.review = setup.identification.review;
         *lock(&self.shared.ramp) = Some(svc.drive_ramp());
         *lock(&self.shared.started) = Some(Instant::now());
@@ -1792,7 +1931,29 @@ impl Actor {
         let pending = self.pending_ident.clone();
         match self.call(|s| s.start()) {
             Ok(Some(Ok(()))) => {
-                lock(&self.shared.log).push(format!("started: {}", reference.source));
+                // The run's record, before any sample is driven: refused here, the arm
+                // is refused and the station released.
+                let arm = ArmContext {
+                    ctx,
+                    table: &table_armed,
+                    class,
+                    sim: sim_identity,
+                    provenance: &provenance,
+                    caps: &caps,
+                    reference_source: &reference.source,
+                    links: (inputs_link, drives_link),
+                    law_file: law_file_kept,
+                };
+                if let Err(e) = self.open_record(arm) {
+                    let _ = self.call(|s| s.stop());
+                    self.svc = None;
+                    self.lock = None;
+                    *lock(&self.shared.started) = None;
+                    *lock(&self.shared.ramp) = None;
+                    return Err(e);
+                }
+                self.shared
+                    .log_line("operator", format!("started: {}", reference.source));
                 if let Some(dir) = pending {
                     let loaded = self.load_cmd(&dir).and_then(|()| {
                         // Straight on to the prediction when the loaded set passes
@@ -1813,7 +1974,13 @@ impl Actor {
                     });
                     if let Err(e) = loaded {
                         let _ = self.call(|s| s.stop());
+                        self.record_tick();
                         self.svc = None;
+                        self.finish_record(
+                            json!({"outcome": "not_started",
+                                   "message": format!("The run did not start: {}", e.message)}),
+                            None,
+                        );
                         self.lock = None;
                         *lock(&self.shared.started) = None;
                         *lock(&self.shared.ramp) = None;
@@ -1857,6 +2024,308 @@ impl Actor {
             }
             _ => Err(MethodError::internal("the run failed while arming")),
         }
+    }
+
+    // ---- the record ---------------------------------------------------------------
+
+    /// Open the run's record: the manifest, the table and the setup, the law, the
+    /// log so far and the streams. `record_unwritable` when it cannot be written.
+    fn open_record(&mut self, a: ArmContext<'_>) -> Result<(), MethodError> {
+        let Some(svc) = self.svc.as_ref() else {
+            return Err(MethodError::internal("the run has no service to record"));
+        };
+        let setup = self.setup.clone();
+        let armed_unix = now_unix();
+        let utc_offset_s = rrec::utc_offset_s();
+        let run_id = if a.ctx.run_id.is_empty() {
+            "m-0000"
+        } else {
+            a.ctx.run_id.as_str()
+        };
+        let run_uid = rrec::run_uid(armed_unix, run_id);
+        let root = self
+            .opts
+            .capture_root
+            .clone()
+            .unwrap_or_else(hertzforge_capture::default_data_root);
+        let streams_off = if !setup.record.streams {
+            Some("switched off in the setup".to_owned())
+        } else {
+            match hertzforge_capture::free_space_bytes_for(&root) {
+                Ok(free) if free < self.opts.record.free_space_floor_bytes => Some(format!(
+                    "the disk had {} MB free, under the {} MB kept free",
+                    free / 1_000_000,
+                    self.opts.record.free_space_floor_bytes / 1_000_000
+                )),
+                _ => None,
+            }
+        };
+        let lc = svc.loop_config();
+        let law = json!({
+            "id": self.law.id, "name": self.law.name,
+            "version": if self.law.version.is_empty() { Value::Null } else { Value::from(self.law.version.as_str()) },
+            "sha256": if self.law.sha256.is_empty() { Value::Null } else { Value::from(self.law.sha256.as_str()) },
+            "builtin": self.law.sha256.is_empty(),
+            "params": setup.law.params,
+            "values": law_values(svc),
+            "guards": {"budget_fraction": svc.config().law_guards.budget_fraction,
+                       "max_misses": svc.config().law_guards.max_misses},
+        });
+        let facts = mrec::ArmFacts {
+            run_id,
+            run_uid: &run_uid,
+            setup: &setup,
+            table: a.table,
+            revision: a.ctx.revision,
+            class: a.class,
+            sim: a.sim,
+            provenance: a.provenance,
+            devices: &a.ctx.devices,
+            caps: a.caps,
+            reference: svc.reference(),
+            tolerances: &svc.config().reference.tolerances,
+            band: svc.band(),
+            df_hz: svc.df_hz(),
+            reference_source: a.reference_source,
+            controller: svc.config_json(),
+            setup_hash: svc.setup_hash(),
+            seed: svc.config().seed,
+            fs_hz: lc.fs_hz,
+            n_pts: lc.nfft,
+            segment_s: lc.segment_seconds(),
+            block_frames: lc.block_frames,
+            law,
+            armed_unix,
+            utc_offset_s,
+            streams_off: streams_off.clone(),
+        };
+        // The entries made before the record opened (an identification to load).
+        let early: Vec<Value> = lock(&self.shared.log)
+            .iter()
+            .map(|t| self.shared.entry_json("operator", t.clone(), None))
+            .collect();
+        let mut begin = mrec::begin(&facts, root, a.links, early);
+        // A law that is a file: its bytes beside its record, read now, before anything
+        // is driven.
+        if let (Some(path), Some((law_json, file))) = (a.law_file.as_ref(), begin.law.as_mut()) {
+            let bytes = std::fs::read(path).map_err(|e| {
+                refused(
+                    "record_unwritable",
+                    format!(
+                        "The law file {} could not be read for the run's record, so the run did \
+                         not arm: {e}.",
+                        path.display()
+                    ),
+                )
+            })?;
+            let name = path
+                .file_name()
+                .map_or_else(|| "law.wasm".into(), |n| n.to_string_lossy().into_owned());
+            law_json["file"] = Value::from(name.as_str());
+            *file = Some((name, bytes));
+        }
+        let shared = self.shared.clone();
+        let problem: ProblemFn = Box::new(move |words: String, data: Value| {
+            shared.record_entry("record", words, Some(data));
+        });
+        let record = RunRecord::open(begin, &self.opts.record, problem).map_err(|e| {
+            refused(
+                "record_unwritable",
+                format!(
+                    "The run's record could not be written, so the run did not arm: {} ({}).                      Choose a data folder that can be written.",
+                    e.path.display(),
+                    e.reason
+                ),
+            )
+            .with_detail(json!({"path": e.path.display().to_string(), "reason": e.reason}))
+        })?;
+        *lock(&self.shared.record_log) = Some(record.log());
+        if let Some(why) = &streams_off {
+            self.shared.record_entry(
+                "record",
+                format!("the run's streams are not recorded: {why}"),
+                Some(json!({"stream": null, "failed": why})),
+            );
+        }
+        let names = Names::of(&setup, a.table, None);
+        let (name, d, arrays) = mrec::reference_result(
+            svc.reference(),
+            &svc.config().reference.tolerances,
+            svc.band(),
+            svc.df_hz(),
+            &names,
+            a.reference_source,
+        );
+        record.put_result(&name, d, arrays, None);
+        let status = record.status();
+        *lock(&self.shared.record) = Some((
+            RecordRef {
+                folder: record.folder().display().to_string(),
+                streams: streams_off.is_none(),
+                problem: None,
+            },
+            status.clone(),
+        ));
+        self.keep = Some(Keeping {
+            record,
+            status,
+            run_uid,
+            table: a.table.clone(),
+            band: svc.band(),
+            df: svc.df_hz(),
+            events_sent: 0,
+            ident_sent: false,
+            law_seq: 0,
+            with_csd: None,
+            loops: 0,
+            snapshots: Vec::new(),
+            snapshot_every_s: svc.config().records.snapshot_every_s,
+            since_snapshot_s: 0.0,
+            first_full_written: false,
+            last_full: None,
+        });
+        Ok(())
+    }
+
+    /// Hand the record what the run has made since the last call: the controller's
+    /// new events, the identification once there is one, each loop and each law call.
+    /// Only copies and sends.
+    fn record_tick(&mut self) {
+        let (Some(k), Some(svc)) = (self.keep.as_mut(), self.svc.as_mut()) else {
+            return;
+        };
+        let events = svc.log().events();
+        for e in events.iter().skip(k.events_sent) {
+            let (kind, text, data) = mrec::event_entry(e);
+            self.shared.record_entry(kind, text, Some(data));
+        }
+        k.events_sent = events.len();
+        let names = Names::of(&self.setup, &k.table, self.kept.as_deref());
+        if !k.ident_sent {
+            if let Some(set) = svc.identification() {
+                k.ident_sent = true;
+                for (name, d, arrays) in mrec::identification_results(
+                    set,
+                    svc.identification_loaded(),
+                    k.band,
+                    k.df,
+                    &names,
+                ) {
+                    k.record.put_result(&name, d, arrays, None);
+                }
+            }
+        }
+        let kept = svc.take_kept();
+        for c in &kept.law_calls {
+            let with = *k.with_csd.get_or_insert(c.response_drive_csd.is_some());
+            let law = c
+                .seed
+                .then(|| json!({"id": svc.law_choice().id, "values": law_values(svc)}));
+            let ((name, d, arrays), line) =
+                mrec::law_call_result(k.law_seq, c, k.band, k.df, &names, with, law);
+            k.law_seq += 1;
+            k.record.put_result(&name, d, arrays, Some(line));
+        }
+        for l in &kept.loops {
+            for ((name, d, arrays), line) in mrec::loop_results(l, k.band, k.df, &names) {
+                k.record.put_result(&name, d, arrays, Some(line));
+            }
+            k.loops += 1;
+            // The full matrices: the first loop at full level, the cadence, and the
+            // last loop at full level (at the end).
+            let Some(resp) = l.response_full.as_ref() else {
+                continue;
+            };
+            k.since_snapshot_s += l.segment_s;
+            let idx = l.summary.loop_index;
+            let why = if l.at_full_level && !k.first_full_written {
+                k.first_full_written = true;
+                Some("first loop at full level")
+            } else if k.since_snapshot_s >= k.snapshot_every_s {
+                Some("cadence")
+            } else {
+                None
+            };
+            if let Some(why) = why {
+                k.since_snapshot_s = 0.0;
+                k.snapshots.push(idx);
+                for ((name, d, arrays), line) in
+                    mrec::snapshot_results(idx, why, resp, &l.drive_full, k.band, k.df, &names)
+                {
+                    k.record.put_result(&name, d, arrays, Some(line));
+                }
+            }
+            if l.at_full_level {
+                k.last_full = Some((idx, resp.clone(), l.drive_full.clone()));
+            }
+        }
+    }
+
+    /// The reference as the run holds it after controls were taken out of control.
+    fn record_reduced_reference(&mut self) {
+        let (Some(k), Some(svc)) = (self.keep.as_ref(), self.svc.as_ref()) else {
+            return;
+        };
+        let names = Names::of(&self.setup, &k.table, self.kept.as_deref());
+        let (_, mut d, arrays) = mrec::reference_result(
+            svc.reference(),
+            &svc.config().reference.tolerances,
+            k.band,
+            k.df,
+            &names,
+            "the reference reduced to the controls kept at the gate",
+        );
+        d.insert(
+            "description".into(),
+            Value::from(
+                "the reference spectral density matrix after controls were taken out of                  control at the gate: the controls kept, at full level, with their alarm and                  abort lines",
+            ),
+        );
+        k.record
+            .put_result("reference_after_exclusion", d, arrays, None);
+    }
+
+    /// End the record: the last loop at full level if not yet taken, then `end.json`
+    /// with how the run ended and what it recorded. Called once the station is
+    /// released, so the streams hold every block.
+    fn finish_record(&mut self, end: Value, report: Option<&MimoReport>) {
+        let Some(mut k) = self.keep.take() else {
+            return;
+        };
+        *lock(&self.shared.record_log) = None;
+        if let Some((idx, resp, drive)) = k.last_full.take() {
+            if !k.snapshots.contains(&idx) {
+                let names = Names::of(&self.setup, &k.table, self.kept.as_deref());
+                k.snapshots.push(idx);
+                for ((name, d, arrays), line) in mrec::snapshot_results(
+                    idx,
+                    "last loop at full level",
+                    &resp,
+                    &drive,
+                    k.band,
+                    k.df,
+                    &names,
+                ) {
+                    k.record.put_result(&name, d, arrays, Some(line));
+                }
+            }
+        }
+        let mut m = Map::new();
+        m.insert("run_uid".into(), Value::from(k.run_uid.as_str()));
+        m.insert("end".into(), end);
+        m.insert("at_unix".into(), json!(now_unix()));
+        m.insert(
+            "summary".into(),
+            json!({"loops": k.loops, "law_calls": k.law_seq, "snapshots": k.snapshots,
+                   "identification": k.ident_sent}),
+        );
+        if let Some(r) = report {
+            m.insert("report".into(), report_record(r));
+        }
+        if let Some((r, _)) = lock(&self.shared.record).as_mut() {
+            r.problem = k.status.problem();
+        }
+        k.record.finish(m);
     }
 
     fn review_phase(&self) -> &'static str {
@@ -1962,7 +2431,10 @@ impl Actor {
             text: ack.to_owned(),
             reason: holds,
         });
-        lock(&self.shared.log).push(format!("override ({}) by {by}: {ack}", holds.name()));
+        self.shared.log_line(
+            "override",
+            format!("override ({}) by {by}: {ack}", holds.name()),
+        );
         match r {
             Ok(Some(Ok(()))) => Ok(()),
             Ok(Some(Err(e))) => Err(refused(
@@ -2058,10 +2530,12 @@ impl Actor {
                     .unwrap_or_else(|| format!("control {i}"))
             })
             .collect();
-        lock(&self.shared.log).push(format!(
-            "excluded at the gate by {by}: {} ({ack})",
-            names.join(", ")
-        ));
+        self.shared.log_line(
+            "override",
+            format!("excluded at the gate by {by}: {} ({ack})", names.join(", ")),
+        );
+        self.record_tick();
+        self.record_reduced_reference();
         Ok(())
     }
 
@@ -2120,8 +2594,10 @@ impl Actor {
         })?;
         match self.call(move |s| s.load_identification(set)) {
             Ok(Some(Ok(()))) => {
-                lock(&self.shared.log)
-                    .push(format!("identification loaded from {}", dir.display()));
+                self.shared.log_line(
+                    "operator",
+                    format!("identification loaded from {}", dir.display()),
+                );
                 Ok(())
             }
             Ok(Some(Err(e))) => Err(refused(
@@ -2294,16 +2770,21 @@ impl Actor {
             excluded: self.excluded_positions(),
             end: None,
             streaming: true,
+            record: None,
         };
-        let ident_dir = svc.identification().and(svc.records_dir());
+        let ident = if p.ident.is_none() {
+            svc.identification().cloned().map(Arc::new)
+        } else {
+            None
+        };
         drop(p);
         let snapshot = Arc::new(svc.quantity_snapshot());
         let mut p = lock(&self.shared.published);
         p.status = st;
         p.snapshot = Some(snapshot);
         p.kept = self.kept.clone();
-        if ident_dir.is_some() {
-            p.ident_dir = ident_dir;
+        if ident.is_some() {
+            p.ident = ident;
         }
     }
 
@@ -2431,6 +2912,8 @@ impl Actor {
                 override_ack: self.override_ack.clone(),
             }
         });
+        // What the run made last, into the record.
+        self.record_tick();
         // Release: the service (its station wrapper takes the drive to zero), then
         // the hardware lock.
         let svc = self.svc.take();
@@ -2438,6 +2921,11 @@ impl Actor {
         self.lock = None;
         *lock(&self.shared.ramp) = None;
         self.ended = true;
+        // The station is released, so its streams have every block: the record ends.
+        let end_json = json!({
+            "outcome": end.outcome, "message": end.message, "at_s": end.at_s,
+            "level_db": end.level_db, "trip": end.trip.clone().unwrap_or(Value::Null),
+        });
         self.report = report.or_else(|| {
             Some(MimoReport {
                 law: self.law.clone(),
@@ -2461,8 +2949,58 @@ impl Actor {
             p.status.remaining_at_level_s = None;
         }
         p.report = self.report.clone();
-        lock(&self.shared.log).push(format!("finished: {outcome}"));
+        drop(p);
+        self.shared
+            .log_line("operator", format!("finished: {outcome}"));
+        let report = self.report.clone();
+        self.finish_record(end_json, report.as_ref());
     }
+}
+
+/// What the arm hands the record besides the run itself.
+struct ArmContext<'a> {
+    ctx: &'a StartContext,
+    table: &'a ChannelTable,
+    class: hertzforge_module_abi::StationClass,
+    sim: Option<Value>,
+    provenance: &'a hertzforge_station::ProvenanceBasis,
+    caps: &'a Caps,
+    reference_source: &'a str,
+    links: (tap::TapLink, tap::TapLink),
+    /// The law file, when the law is one.
+    law_file: Option<PathBuf>,
+}
+
+/// The law's parameter values as the run holds them, every one in the manifest's
+/// order, each `{"key","kind","value"}`.
+fn law_values(svc: &MimoRandomService) -> Value {
+    Value::Array(
+        svc.law_choice()
+            .params
+            .iter()
+            .map(hertzforge_mimo_random::records::param_json)
+            .collect(),
+    )
+}
+
+/// The report as the record's end keeps it: per controlled quantity (in the setup's
+/// order) the rms, its reference's and the error; per drive the rms and the smallest
+/// cap; the gates and the operator's acknowledgements.
+fn report_record(r: &MimoReport) -> Value {
+    json!({
+        "loops": r.loops,
+        "control_rms": r.control_rms,
+        "reference_rms": r.reference_rms,
+        "control_error_db": r.control_error_db,
+        "drive_rms_v": r.drive_rms_v,
+        "min_cap": r.min_cap,
+        "gates": r.gates.as_ref().map(|g| json!({
+            "coherence_min": g.coherence_min, "coherence_floor": g.coherence_floor,
+            "condition_max": g.condition_max, "condition_limit": g.condition_limit,
+            "passed": g.passed(), "coherence": g.coherence,
+        })),
+        "overrides": r.override_ack.iter().map(|a| json!({"by": a.by, "text": a.text, "reason": a.reason.name()})).collect::<Vec<_>>(),
+    })
 }
 
 /// A trip as the protocol's `trip` object.

@@ -10,6 +10,7 @@
 //! [`super::sim::SimulatedEngine`] instead.
 
 use super::config::{self, WireSrs};
+use super::record::{IdentRecord, ShotRecording};
 use super::view::{
     ComponentFigures, FrfFigures, IdentFacts, IdentFigures, LawCall, LawReading, LimitFigures,
     Notch, Prediction, PulseFigures, Row, SrsFigures, Trip, TripFacts,
@@ -31,7 +32,8 @@ use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::Instant;
 
-pub use crate::shock::engine::{ArmOutcome, Armed, EngineContext, LevelMove, Position};
+pub use crate::shock::engine::{ArmOutcome, Armed, EngineContext, LevelMove, LogLine, Position};
+pub use crate::shock::record::StationFacts;
 
 /// What a run arms on, taken from the service when the request arrives.
 pub struct ArmPlan {
@@ -41,7 +43,6 @@ pub struct ArmPlan {
     pub scanner: Arc<dyn NiScanner>,
     /// The service's local data directory: the hardware lock lives here.
     pub data_root: PathBuf,
-    pub capture_root: Option<PathBuf>,
     pub bind: String,
     /// The run's law, resolved by the service from the catalog.
     pub law: Result<Arc<dyn SrsLawFactory>, MethodError>,
@@ -49,6 +50,16 @@ pub struct ArmPlan {
     pub law_values: Vec<DiagnosticSpec>,
     /// The operator's acknowledgement to arm past a feasibility exceedance.
     pub ack: Option<String>,
+    /// The devices of the last scan, for the record's models and serial numbers.
+    pub devices: Vec<hertzforge_hal::DiscoveredDevice>,
+    /// Whether the record keeps the streams, and how many seconds of samples
+    /// their buffers hold before blocks are dropped.
+    pub streams: bool,
+    pub stream_buffer_s: f64,
+    /// The station frame, set by the station wrapper after every read.
+    pub station_frame: Arc<AtomicU64>,
+    /// The shots the station wrapper has begun.
+    pub shots: Arc<AtomicU64>,
 }
 
 /// How identification ended.
@@ -116,8 +127,20 @@ pub trait SrsEngine: Send {
     fn law_values(&self) -> Vec<LawReading>;
     /// Unusable law calls in a row now.
     fn misses(&self) -> u32;
-    /// Log lines since the last call.
-    fn take_log(&mut self) -> Vec<(&'static str, String)>;
+    /// Log lines since the last call, each with its facts for the record.
+    fn take_log(&mut self) -> Vec<LogLine>;
+    /// Let the station go after an arm the run refused (its record could not be
+    /// written): nothing has been driven.
+    fn release(&mut self) {}
+    /// What the run's record says of the station armed, and its streams' links;
+    /// taken once, after an arm.
+    fn take_station_facts(&mut self) -> Option<StationFacts> {
+        None
+    }
+    /// The identification as the record keeps it, once done.
+    fn ident_record(&self) -> Option<IdentRecord> {
+        None
+    }
     /// When the device started the last pulse, as the controller stamped it once
     /// the station's clock ran: the moment the time between pulses is held from.
     /// `None` leaves the run thread its own moment of asking for the pulse.
@@ -437,35 +460,48 @@ pub fn end_of_trip(t: &TripRecord, predicted_db: f64, table: &ChannelTable) -> E
     }
 }
 
-/// The controller's events since `seen`, as log lines.
-fn forward_log(seen: &mut usize, log: &mut Vec<(&'static str, String)>, svc: &SrsShockService) {
+/// The controller's events since `seen`, as log lines with their facts for the
+/// record. `rows` are the controller's pulse rows, for each fired pulse's verdict.
+fn forward_log(seen: &mut usize, log: &mut Vec<LogLine>, svc: &SrsShockService, rows: &[PulseRow]) {
     let level = |db: f64| num(config::round(db, 2));
     let events = svc.log().events();
     for e in events.iter().skip(*seen) {
-        let line = match &e.kind {
-            EventKind::Note { text } => Some(("note", text.clone())),
+        let line: Option<LogLine> = match &e.kind {
+            EventKind::Note { text } => Some(("note", text.clone(), None)),
             EventKind::PulseFired {
                 seq,
                 level_db,
                 peak_accel_g,
                 worst_err_db,
-            } => Some((
-                "pulse",
-                format!(
-                    "pulse {} at {} dB: {} g{}",
-                    seq + 1,
-                    level(*level_db),
-                    sig3(*peak_accel_g),
-                    worst_err_db.map_or_else(String::new, |w| format!(
-                        ", worst band {} dB",
-                        num(config::round(w, 2))
-                    ))
-                ),
-            )),
+            } => {
+                let row = rows.iter().find(|r| r.seq == *seq);
+                Some((
+                    "pulse",
+                    format!(
+                        "pulse {} at {} dB: {} g{}",
+                        seq + 1,
+                        level(*level_db),
+                        sig3(*peak_accel_g),
+                        worst_err_db.map_or_else(String::new, |w| format!(
+                            ", worst band {} dB",
+                            num(config::round(w, 2))
+                        ))
+                    ),
+                    Some(json!({
+                        "pulse": seq, "level_db": level_db,
+                        "scheduled_db": row.map(|r| r.scheduled_db),
+                        "peak_g": peak_accel_g, "worst_err_db": worst_err_db,
+                        "alarm_bands": row.map(|r| r.alarm_bands),
+                        "abort_bands": row.map(|r| r.abort_bands),
+                        "measured": row.map(|r| r.passed.is_some()),
+                        "passed": row.and_then(|r| r.passed),
+                    })),
+                ))
+            }
             EventKind::SysId {
                 band_coherence,
                 level_db,
-                ..
+                channels,
             } => Some((
                 "note",
                 format!(
@@ -473,11 +509,22 @@ fn forward_log(seen: &mut usize, log: &mut Vec<(&'static str, String)>, svc: &Sr
                     level(*level_db),
                     band_coherence
                 ),
+                Some(json!({"identified": true, "level_db": level_db,
+                            "coherence_mean": band_coherence, "channels": channels})),
+            )),
+            EventKind::Held { reason } => Some((
+                "note",
+                format!(
+                    "identification held the run: {}",
+                    reason.as_str().replace('_', " ")
+                ),
+                Some(json!({"held": reason.as_str()})),
             )),
             EventKind::NotchPlanned {
                 notched_bands,
+                worst_before_db,
+                worst_after_db,
                 converged,
-                ..
             } => Some((
                 "note",
                 format!(
@@ -489,6 +536,10 @@ fn forward_log(seen: &mut usize, log: &mut Vec<(&'static str, String)>, svc: &Sr
                         "; its fit did not converge"
                     }
                 ),
+                Some(json!({"notch": {"notched_bands": notched_bands,
+                                      "worst_before_db": worst_before_db,
+                                      "worst_after_db": worst_after_db,
+                                      "converged": converged}})),
             )),
             EventKind::EnvelopeAlarm {
                 bands,
@@ -500,17 +551,46 @@ fn forward_log(seen: &mut usize, log: &mut Vec<(&'static str, String)>, svc: &Sr
                     if *bands == 1 { "" } else { "s" },
                     num(config::round(*worst_err_db, 2))
                 ),
+                Some(json!({"bands": bands, "worst_err_db": worst_err_db})),
             )),
-            EventKind::DriveScaled { scale, reason } => {
-                Some(("note", format!("drive limit: scale {scale:.3}, {reason}")))
-            }
+            EventKind::DriveScaled { scale, reason } => Some((
+                "note",
+                format!("drive limit: scale {scale:.3}, {reason}"),
+                Some(json!({"drive_limit": "scaled", "scale": scale, "reason": reason})),
+            )),
             EventKind::MonitorScaled { scale, channel } => Some((
                 "note",
                 format!("monitor {channel}: the next pulse is scaled by {scale:.3}"),
+                Some(json!({"monitor": channel, "scale": scale})),
             )),
-            EventKind::LevelChange { from_db, to_db, .. } => Some((
+            EventKind::LevelChange {
+                from_db,
+                to_db,
+                auto,
+            } => Some((
                 "level",
                 format!("level {} to {} dB", level(*from_db), level(*to_db)),
+                Some(json!({"from_db": from_db, "to_db": to_db, "auto": auto})),
+            )),
+            EventKind::LawCalled {
+                pulse,
+                used: false,
+                reason,
+                detail,
+                ..
+            } => Some((
+                "note",
+                format!(
+                    "the law's call after {pulse} pulse{} was not used{}",
+                    if *pulse == 1 { "" } else { "s" },
+                    detail
+                        .as_deref()
+                        .map_or_else(String::new, |d| format!(": {d}"))
+                ),
+                Some(
+                    json!({"after_pulses": pulse, "used": false, "reason": reason,
+                            "detail": detail}),
+                ),
             )),
             _ => None,
         };
@@ -533,9 +613,11 @@ pub struct ServiceEngine {
     unit: String,
     rows_seen: usize,
     log_seen: usize,
-    log: Vec<(&'static str, String)>,
+    log: Vec<LogLine>,
     /// Each pulse's bring-up not yet in the service log.
     bring_ups: Vec<(u64, hertzforge_shock_common::BringUp)>,
+    /// What the record says of the station armed, until the run takes it.
+    station_facts: Option<StationFacts>,
 }
 
 impl ServiceEngine {
@@ -552,6 +634,7 @@ impl ServiceEngine {
             log_seen: 0,
             log: Vec::new(),
             bring_ups: Vec::new(),
+            station_facts: None,
         }
     }
 
@@ -611,12 +694,10 @@ impl ServiceEngine {
         let Some(svc) = self.svc.as_mut() else {
             return Fired::default();
         };
-        // With capture running the controller writes each law call into the run
-        // folder; without it the records have nowhere to go and are let go here
-        // rather than held for the whole run.
-        if !svc.status().capturing {
-            let _ = svc.drain_law_records();
-        }
+        // The controller's own capture never runs here (the run's record is the
+        // one way an SRS shock run records), so its law-call records have nowhere
+        // to go and are let go rather than held for the whole run.
+        let _ = svc.drain_law_records();
         let Some(svc) = self.svc.as_ref() else {
             return Fired::default();
         };
@@ -630,7 +711,7 @@ impl ServiceEngine {
             }
         }
         self.rows_seen = report.pulses.len();
-        forward_log(&mut self.log_seen, &mut self.log, svc);
+        forward_log(&mut self.log_seen, &mut self.log, svc, &report.pulses);
         out.end = self.ended();
         out
     }
@@ -728,14 +809,9 @@ fn fired_or_cancelled<T>(r: Result<T, hertzforge_srs::ServiceError>) -> Result<(
 impl SrsEngine for ServiceEngine {
     fn arm(&mut self, plan: ArmPlan) -> Result<ArmOutcome, MethodError> {
         let law = plan.law?;
+        // The configuration keeps the controller's own capture off: the run's
+        // record is the one way an SRS shock run records.
         let mut cfg = plan.cfg.build(&plan.table);
-        // The service always gives a records root (`ServiceOptions::records_root`);
-        // a plan without one has nowhere to record.
-        cfg.capture.trigger = if plan.cfg.capture_auto_start && plan.capture_root.is_some() {
-            hertzforge_srs::service::config::ShockCaptureTrigger::EveryPulse
-        } else {
-            hertzforge_srs::service::config::ShockCaptureTrigger::Off
-        };
         // The run thread holds for review itself (the protocol's hold) and calls the
         // seed when it is over, so the controller always stops there.
         cfg.review_after_sysid = true;
@@ -763,6 +839,49 @@ impl SrsEngine for ServiceEngine {
         };
         let class = built.station;
         let provenance = built.provenance.clone();
+        // The streams are taken where the station's blocks pass: every input as
+        // read and the drive as the device accepted it, a shot per start. Their
+        // buffers are made here, before anything runs.
+        let caps = built.backend.caps();
+        let buffers = if plan.streams {
+            crate::random::record::tap_buffers(plan.cfg.fs_hz(), plan.stream_buffer_s)
+        } else {
+            1
+        };
+        let (inputs_tap, inputs_link) = crate::record::tap::pair(
+            crate::random::record::input_rows(&plan.table).len(),
+            crate::random::record::TAP_BLOCK_FRAMES,
+            buffers,
+        );
+        let (drives_tap, drives_link) = crate::record::tap::pair(
+            crate::random::record::drive_rows(&plan.table).len(),
+            crate::random::record::TAP_BLOCK_FRAMES,
+            buffers,
+        );
+        let recorded = ShotRecording::wrap(
+            built.backend,
+            inputs_tap,
+            drives_tap,
+            plan.station_frame.clone(),
+            plan.shots.clone(),
+        );
+        self.station_facts = Some(StationFacts {
+            source: station::source_of(class),
+            station: crate::random::record::station_member(
+                matches!(&plan.station, StationPlan::Sim { .. }),
+                class,
+                &provenance,
+                &plan.devices,
+                &caps,
+            ),
+            sim: crate::random::record::sim_value(&plan.station, class),
+            build: crate::random::record::build_value(provenance.core_build),
+            output_latency: match &caps.output_buffer {
+                Some(b) => json!({"frames": b.min_lookahead_frames, "how": "declared"}),
+                None => json!({"frames": null, "how": "unknown"}),
+            },
+            links: Some((inputs_link, drives_link)),
+        });
         self.unit = plan
             .table
             .channels
@@ -779,14 +898,13 @@ impl SrsEngine for ServiceEngine {
             abort: None,
         };
         let wait = watch.clone();
-        let backend: Box<dyn hertzforge_hal::Backend> =
-            Box::new(Observed::new(built.backend, watch));
+        let backend: Box<dyn hertzforge_hal::Backend> = Box::new(Observed::new(recorded, watch));
         let plant = HalPulsePlant::new(backend, plan.table.clone(), class).map_err(arm_refused)?;
         let mut svc = SrsShockService::new(
             cfg,
             plan.table.clone(),
             FirePath::Host(Box::new(plant)),
-            plan.capture_root.clone(),
+            None,
         )
         .map_err(arm_refused)?
         .with_law_factory(law);
@@ -814,7 +932,7 @@ impl SrsEngine for ServiceEngine {
         self.cfg = Some(plan.cfg.clone());
         self.table = plan.table;
         self.law_values = plan.law_values;
-        forward_log(&mut self.log_seen, &mut self.log, &svc);
+        forward_log(&mut self.log_seen, &mut self.log, &svc, &[]);
         self.svc = Some(svc);
         Ok(ArmOutcome::Armed(Armed {
             fs_hz: adopted,
@@ -851,7 +969,7 @@ impl SrsEngine for ServiceEngine {
             .svc
             .as_ref()
             .ok_or_else(|| fault("the run lost its station"))?;
-        forward_log(&mut self.log_seen, &mut self.log, svc);
+        forward_log(&mut self.log_seen, &mut self.log, svc, &[]);
         let status = svc.status();
         let facts = status.identification.as_ref().map(|i| IdentFacts {
             excitation: config::excitation_name(i.excitation),
@@ -894,7 +1012,7 @@ impl SrsEngine for ServiceEngine {
             .svc
             .as_ref()
             .ok_or_else(|| fault("the run lost its station"))?;
-        forward_log(&mut self.log_seen, &mut self.log, svc);
+        forward_log(&mut self.log_seen, &mut self.log, svc, &[]);
         if let Some(end) = self.ended() {
             return Ok(Seeded::Ended(end));
         }
@@ -1065,8 +1183,40 @@ impl SrsEngine for ServiceEngine {
             .map_or(0, |l| l.misses_in_a_row)
     }
 
-    fn take_log(&mut self) -> Vec<(&'static str, String)> {
+    fn take_log(&mut self) -> Vec<LogLine> {
         std::mem::take(&mut self.log)
+    }
+
+    fn release(&mut self) {
+        if let Some(mut svc) = self.svc.take() {
+            let _ = svc.stop();
+        }
+    }
+
+    fn take_station_facts(&mut self) -> Option<StationFacts> {
+        self.station_facts.take()
+    }
+
+    fn ident_record(&self) -> Option<IdentRecord> {
+        let v = self.svc.as_ref()?.identification_view()?;
+        let (lo, hi) = v.band_hz;
+        let bins: Vec<usize> = (0..v.freqs_hz.len().min(v.h.len()))
+            .filter(|&k| (lo..=hi).contains(&v.freqs_hz[k]))
+            .collect();
+        let first = *bins.first()?;
+        let df = match v.freqs_hz.get(1) {
+            Some(f1) => f1 - v.freqs_hz[0],
+            None => return None,
+        };
+        Some(IdentRecord {
+            first_hz: v.freqs_hz[first],
+            df_hz: df,
+            h: bins.iter().map(|&k| v.h[k]).collect(),
+            coherence: bins
+                .iter()
+                .map(|&k| v.coherence.get(k).copied().unwrap_or(0.0))
+                .collect(),
+        })
     }
 
     fn last_pulse_start(&self) -> Option<Instant> {

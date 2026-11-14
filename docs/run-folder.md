@@ -5,9 +5,9 @@ control service while the run goes, that needs no other file and no running
 service to be read. The analysis side converts it into an ordinary project file
 (`hertzforge convert-run FOLDER`, or open the folder or its `run.json`), so a
 finished run reaches every analysis tool with its channel table, its setup, its
-log and its measurements. Today the Random, Sine and Classical Shock modules,
-Explorer and the Recorder write one for every run; the other control modules do
-not yet.
+log and its measurements. Today the Random, MIMO Random, Sine, Classical Shock,
+SRS shock and TWR modules, Explorer and the Recorder write one for every run; the
+other control modules do not yet.
 
 The exact form is the reader's, `hertzforge.io.run_folder`; the conversion is
 `hertzforge.io.run_convert`, described in `docs/hforge-format.md` ("Run Folders
@@ -18,13 +18,16 @@ written by.
 
 Under the service's data folder: the folder `HERTZFORGE_DATA_ROOT` names, or
 `Hertzforge_Data` in the home folder. A Random run's folder is named
-`<YYYYMMDD-HHMMSS>_random_<run id>`, a Sine run's
-`<YYYYMMDD-HHMMSS>_sine_<run id>` and a Classical Shock run's
-`<YYYYMMDD-HHMMSS>_classical_shock_<run id>`, the time it armed in UTC. A
-Recorder run's folder, and an Explorer run's, is the plain name its setup gives
-(`capture.run_name`).
-The run's state names the folder from arm on (`random.state`, `sine.state`,
-`shock.state`, `explorer.state` and `recorder.state`, `record.folder`).
+`<YYYYMMDD-HHMMSS>_random_<run id>`, a MIMO Random run's
+`<YYYYMMDD-HHMMSS>_mimo_random_<run id>`, a Sine run's
+`<YYYYMMDD-HHMMSS>_sine_<run id>`, a Classical Shock run's
+`<YYYYMMDD-HHMMSS>_classical_shock_<run id>`, an SRS shock run's
+`<YYYYMMDD-HHMMSS>_srs_<run id>` and a TWR run's
+`<YYYYMMDD-HHMMSS>_twr_<run id>`, the time it armed in UTC. A Recorder run's
+folder, and an Explorer run's, is the plain name its setup gives
+(`capture.run_name`). The run's state names the folder from arm on
+(`random.state`, `mimo_random.status`, `sine.state`, `shock.state`, `srs.state`,
+`twr.state`, `explorer.state` and `recorder.state`, `record.folder`).
 
 ## Layout
 
@@ -266,6 +269,102 @@ classical_shock_golden_run` from a short run on the simulator, with fixed seeds,
 its wall times and build fields normalized; `scripts/make_golden_runs.sh`
 rewrites it.
 
+## What an SRS Run Saves
+
+From arm: `run.json`, `table.json`, `setup.json` (the configuration as
+accepted; resolved, the target as given and on the band centres, the bands and
+their Q, the envelope's alarm and abort bands, the synthesis settings with the
+offline synthesis's result, its pulse's kinematics and its fitted table, the
+ring-out, the level schedule and pulse counts, the spacing, the identification,
+the control settings and the controller's own, the limits, monitors and limit
+channels, and the rates; the derived values; feasibility), `law/law.json` (the
+law's identity, parameters and guards) and `log.jsonl` (every state, level,
+pulse fired with its level and verdict, alarm, drive-limit action, notch, unused
+law call, trip, hold and operator action, each with its facts in `data`), and
+these files, each checked against the golden run folder
+(`schema/golden/runs/srs/`) by `tests/test_srs_run_folder_golden.py`:
+
+| File | What |
+|---|---|
+| `streams/inputs` | Every enabled input as read from the station, in table order, a shot for the identification and one for each pulse (`kind` `inputs`) |
+| `streams/drives` | The drive as the device accepted it, in volts, shot for shot with the inputs (`kind` `drives`) |
+| `results/srs_reference` | The target SRS at full level on the run's bands, with the envelope's alarm band and abort band (`kind` `srs_reference`) |
+| `results/synthesis` | The pulse the configuration was synthesized to, at full level and the configured rate, with its velocity, displacement and SRS on the bands (`kind` `srs_synthesis`, kept as arrays) |
+| `results/identification_frf` | The identification's complex transfer function, drive to control response, on the band (`kind` `frf`) |
+| `results/identification_coherence` | Its ordinary coherence (`kind` `coherence`) |
+| `results/pulse_srs` | Each pulse's SRS, with the target at the level fired and the envelope's bands (`kind` `srs`, one record per pulse measured) |
+| `results/drive_tables` | The drive table after each pulse: each component's frequency and drive amplitude, and the law's gains (`kind` `srs_drive_table`, kept as arrays, one record per pulse) |
+| `results/pulses` | Each pulse as judged: its level, scheduled level, limit scale, drive peak, peak, peak velocity, peak-to-peak displacement, worst band error and its frequency, bands outside the alarm and abort bands, the limit channels' cut and its verdict (`kind` `pulse_results`, kept as arrays, one record per pulse) |
+| `end.json` | The end, as the run's state reports it |
+
+Each pulse's results are written when the pulse is judged, the last pulse of
+the run included; a record's line names the pulse, its level and the station
+frame, and the law call it played. Every SRS shot fires at its first frame. A
+shot no pulse was judged on (a pulse withheld in the wait before it played, when
+nobody held control, or one stopped part way) is named `unjudged`; a withheld
+one holds the drive committed for it and no input frames, and says `played`
+false. A run that ends before its identification has no identification and no
+pulses; one held by identification has its identification and no pulses. With
+`record.streams` false there is no `streams/` folder. The limit channels' own
+identified gains are not saved. The analysis side keeps the synthesis, the drive
+tables and the verdicts and kinematics of `pulses` as arrays in the run record,
+since no analysis class holds them: the synthesized pulse is a design the drive
+started from, not a waveform the test was controlled to.
+
+The golden folder is written by `cargo test -p sds-control --test
+srs_golden_run` from a short run on the simulator, with fixed seeds, its wall
+times, its law calls' times and build fields normalized;
+`scripts/make_golden_runs.sh` rewrites it.
+
+## What a TWR Run Saves
+
+From arm: `run.json`, `table.json`, `setup.json` (the configuration as accepted;
+resolved, the reference as stored with its name, SHA-256, rate, length, units
+and preparation, the record it was prepared into at the rate the station runs
+at with its section and pads, the identification, the inverse and the
+correction, the control law and its guards, the level schedule with its gate,
+its iterations and the playback's play count, the limits and the feasibility
+ceilings, and the rates; the derived values; feasibility), `law/law.json` (the
+law's identity, parameters and guards) and `log.jsonl` (every state, level,
+play with its level, error and how it ended, alarm, trip, hold and operator
+action, each with its facts in `data`), and these files, each checked against
+the golden run folder (`schema/golden/runs/twr/`) by
+`tests/test_twr_run_folder_golden.py`:
+
+| File | What |
+|---|---|
+| `streams/inputs` | Every enabled input as read from the station, in table order, a shot for the identification and one for each play (`kind` `inputs`) |
+| `streams/drives` | The drive as the device accepted it, in volts, shot for shot with the inputs, with the lag every play is aligned at (`kind` `drives`) |
+| `results/reference` | The reference as imported, at its own rate (`kind` `waveform`, kept as arrays) |
+| `results/target` | The target at full level: the prepared section between its pads on the record's samples, time from the section's start, with the alarm and abort bands' share of its peak (`kind` `transient_reference`) |
+| `results/identification_frf` | The identification's complex transfer function, drive to control response, on the identification band (`kind` `frf`) |
+| `results/identification_coherence` | Its ordinary coherence, and the lines the correction trusts (`kind` `coherence`) |
+| `results/plays` | Each play: its level, kind and iteration, its rms, peak and spectral error, whether it met the gate, its clipped samples and clamped bins, its drive and response peaks, its lag and drift, its start and length in station frames, and whether it tripped or was cancelled (`kind` `play_results`, kept as arrays, one record per play) |
+| `results/law_calls` | Every call of the control law: the drive it returned at full level on the record's samples, the level and error it was handed, its caps, whether it was used and how long it took (`kind` `law_calls`, kept as arrays, one record per call) |
+| `end.json` | The end, as the run's state reports it |
+
+A play is one start and one stop of the station: its shot holds the record and
+the rest pad after it, and its `pre_frames` are the pad before the section, so
+the section starts at time zero. Each play's results are written when it is
+judged, the last play of the run included; the play a protection ends the run
+on, and one a stop or an abort cuts short, are recorded as far as the station
+acquired them, their shot and their record saying `tripped` or `cancelled`.
+The law is called at the seed, after an iteration play that misses its gate,
+and after a playback play only when correction goes on during playback; a call
+that gave no drive has NaN for it. A run held by its identification has its
+identification shot and no plays. With `record.streams` false there is no
+`streams/` folder. The analysis side keeps the target as a
+`TransientSpecification`, which has no limits, so the alarm and abort shares
+stay in its result's description; the reference as imported, each play's
+measures and every law call stay in the run record as named arrays.
+
+The golden folder is written by `cargo test -p sds-control --test
+twr_golden_run` from a short run on the simulator, with fixed seeds, its wall
+times, build fields and each law call's measured duration normalized, and each
+shot of its streams cut to its first 128 frames (`cut_from_frames`, on the
+stream and on each shot): every shot carries the station's rest pad of 1024
+frames; `scripts/make_golden_runs.sh` rewrites it.
+
 ## What a Random Run Saves
 
 From arm: `run.json`, `table.json`, `setup.json`, `law/law.json` (the built-in
@@ -341,6 +440,72 @@ sine_golden_run` from a short sweep on the simulator, with fixed seeds, its wall
 times, build fields and each law call's measured duration normalized, and its
 streams cut to their first 1024 frames (`cut_from_frames`): the identification's
 burst alone is 131 072 frames;
+`scripts/make_golden_runs.sh` rewrites it.
+
+## What a MIMO Random Run Saves
+
+From arm: `run.json` (with the operator's words, `specification` when one is named,
+and `recording`), `table.json`, `setup.json` (the setup as sent in `config`, which
+holds an inline reference whole; `resolved.reference`, where the reference came from
+(inline, or a reference file by its path and SHA-256), its size, its labels, its
+control space, its band as line indexes and in hertz and its line spacing;
+`resolved.channels`, the control channels with their bands, the drives with their
+ceilings, abort levels, peaks, shakers and moving masses, the limit channels;
+`resolved.space` with any transformations; `resolved.law`, `resolved.estimation`,
+`resolved.identification`, `resolved.control` (the loop and averaging settings, the
+caps, the law's budget and misses, the ramps, the soft start), `resolved.schedule`;
+`resolved.controller`, the controller's own settings; `resolved.setup_hash` and
+`resolved.seed`; and `derived`, the grid, the band and the snapshot cadence),
+`law/law.json` (the law's identity, the parameters as given, every parameter value
+the run holds in the manifest's order, and its guards; a law that is a file has its
+bytes beside it, named in `file`) and `log.jsonl` (the controller's events, its state
+changes, levels, alarms, overrides, law misses and trips, and the operator's stops and
+aborts, each as it is made), and these files, each checked against the golden run
+folder (`schema/golden/runs/mimo_random/`) by
+`tests/test_run_folder_golden_mimo_random.py`. Spectral results are on the band's
+lines (outside it nothing is driven or controlled), matrices in the file's convention
+(`conj(X) Y`), referred to full level:
+
+| File | What |
+|---|---|
+| `streams/inputs` | Every enabled input as read from the station, in table order (`kind` `inputs`), the noise floor and the identification included |
+| `streams/drives` | Every drive as the device accepted it, in volts (`kind` `drives`), the identification's noise included |
+| `results/reference` | The reference spectral density matrix in the control space, with each controlled quantity's alarm and abort lines as spectral densities (`kind` `sdm_reference`) |
+| `results/identification_frf` | The identification's transfer function matrix, each drive to each control and limit channel, the response taken the lag it measured later (`kind` `frf`) |
+| `results/identification_coherence` | Each controlled quantity's multiple coherence with the drives (`kind` `coherence`) |
+| `results/identification_response` | The control channels' spectral matrix while the drives played (`kind` `cpsd`) |
+| `results/identification_noise` | The control channels' spectral matrix with the drives off, the noise floor (`kind` `cpsd`) |
+| `results/identification_drive` | The drives' spectral matrix (`kind` `cpsd`) |
+| `results/identification_cross` | Each control and limit channel's cross spectrum with each drive (`kind` `cpsd`) |
+| `results/identification` | The transfer function's condition number per line and the rms each drive played, with the setup hash, the level, the frames, the steps, the lag and whether the set was loaded (`kind` `mimo_identification`) |
+| `results/drive_spectra` | Each loop: every drive's spectral density in force; its record line is the loop's summary (level, state, errors, drive rms, what the guards did, timing, misses in a row) (`kind` `psd`) |
+| `results/control_spectra` | Each loop that judged the response: every controlled quantity's spectral density and its error against the reference, dB (`kind` `psd`) |
+| `results/control_sdm` | The controlled quantities' full spectral matrix at the first loop at full level, every 30 s of loops and at the last loop at full level (`kind` `cpsd`) |
+| `results/drive_sdm` | The drives' full spectral matrix at the same loops (`kind` `cpsd`) |
+| `results/law_calls` | Every call of the control law, in its own space: the response, transfer function and multiple coherence it was given, the drive in force, the cross spectrum when the law takes it, and the drive it returned (Hermitian matrices packed by their upper triangle); the record line says seed or iterate, the loop, the outcome, a miss's words and the law's declared values (`kind` `mimo_law_calls`) |
+| `end.json` | The end, as the run's state reports it, with what the record counted (loops, law calls, the snapshots' loops) and the report: each controlled quantity's rms, its reference's and its error, each drive's rms and smallest cap, the gates and the overrides |
+
+A run whose controls were taken out of control at the gate adds
+`results/reference_after_exclusion`, the reference reduced to the controls kept. A run
+that ends before identification has no identification; one that ends before it
+engages has no loops and no law calls but its prediction's seed. With `record.streams`
+false there is no `streams/` folder.
+
+On the analysis side the reference becomes a `Specification` with a record for each
+autospectrum and each cross term above the diagonal, the controlled channels' alarm and
+abort lines as the warning and abort limits of their autospectra; the transfer function
+matrix an `Frf`; the multiple coherence a `MultipleCoherence`; each spectral matrix and
+cross spectrum, each loop's spectra and the snapshots a `Psd` with cross terms, a record
+per loop; all in SI, opened in the Random Vibration workspace. The condition numbers,
+the drives' rms, each loop's errors and the law's calls stay in the run record as named
+arrays. Under virtual control the controlled quantities are degrees of freedom, not
+channels of the table, so the reference, the coherence and the controlled spectra stay
+as arrays, and the conversion says so.
+
+The golden folder is written by `cargo test -p sds-control --test
+mimo_random_golden_run` from a short run on the simulator's 4 by 4 plant, with fixed
+seeds, its wall times, build fields and each loop's measured durations normalized, and
+its streams cut to their first 128 frames (`cut_from_frames`);
 `scripts/make_golden_runs.sh` rewrites it.
 
 ## What a Recorder Run Saves

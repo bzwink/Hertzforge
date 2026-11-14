@@ -12,8 +12,8 @@
 
 use super::config::{self, WireSrs};
 use super::engine::{
-    ArmOutcome, ArmPlan, Armed, EngineContext, EngineEnd, Fired, Identified, LevelMove, Position,
-    Seeded, SrsEngine,
+    ArmOutcome, ArmPlan, Armed, EngineContext, EngineEnd, Fired, Identified, LevelMove, LogLine,
+    Position, Seeded, SrsEngine, StationFacts,
 };
 use super::preview::{self, Synthesis};
 use super::view::{
@@ -43,7 +43,7 @@ pub struct SimulatedEngine {
     fired: u64,
     passed: u64,
     armed_at: Option<Instant>,
-    log: Vec<(&'static str, String)>,
+    log: Vec<LogLine>,
 }
 
 impl SimulatedEngine {
@@ -357,6 +357,10 @@ impl SrsEngine for SimulatedEngine {
                 num(config::round(level, 2)),
                 num(config::round(worst_db, 2))
             ),
+            Some(
+                serde_json::json!({"pulse": index, "level_db": level, "measured": true,
+                                    "passed": true}),
+            ),
         ));
         Ok(Fired {
             rows: vec![row],
@@ -472,7 +476,22 @@ impl SrsEngine for SimulatedEngine {
         0
     }
 
-    fn take_log(&mut self) -> Vec<(&'static str, String)> {
+    fn take_station_facts(&mut self) -> Option<StationFacts> {
+        Some(StationFacts {
+            source: "SIM",
+            station: serde_json::json!({"kind": "sim", "class": "sim", "label": "simulated engine",
+                                        "backend": "none", "devices": [], "clock": "shared"}),
+            sim: Some(serde_json::json!({"model": "simulated_engine",
+                                         "parameters": {"gain_v_per_g": GAIN_V_PER_G},
+                                         "seed": null})),
+            build: serde_json::json!({"version": env!("CARGO_PKG_VERSION"), "commit": null,
+                                      "dirty": null}),
+            output_latency: serde_json::json!({"frames": null, "how": "unknown"}),
+            links: None,
+        })
+    }
+
+    fn take_log(&mut self) -> Vec<LogLine> {
         std::mem::take(&mut self.log)
     }
 }

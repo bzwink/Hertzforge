@@ -1,0 +1,63 @@
+{
+  "revision": 2,
+  "sha256": "b60c4382e81b63b883dd78cf76c455f462ec02fd92d00d560742ae80dd7c0b1b",
+  "rows": [
+    {
+      "index": 1,
+      "enabled": true,
+      "description": "Control",
+      "role": "control",
+      "physical": null,
+      "interface": "single_ended",
+      "iepe_bias_v": null,
+      "units": "g",
+      "sensitivity_mv_per_eu": 1000,
+      "range_max": 10,
+      "polarity": "positive",
+      "control_group": null,
+      "abort": {
+        "accel_g": null,
+        "velocity_ips": null,
+        "displacement_mil": null
+      }
+    },
+    {
+      "index": 2,
+      "enabled": true,
+      "description": "Monitor",
+      "role": "monitor",
+      "physical": null,
+      "interface": "single_ended",
+      "iepe_bias_v": null,
+      "units": "g",
+      "sensitivity_mv_per_eu": 1000,
+      "range_max": 10,
+      "polarity": "positive",
+      "control_group": null,
+      "abort": {
+        "accel_g": null,
+        "velocity_ips": null,
+        "displacement_mil": null
+      }
+    },
+    {
+      "index": 3,
+      "enabled": true,
+      "description": "Drive",
+      "role": "drive",
+      "physical": null,
+      "interface": "single_ended",
+      "iepe_bias_v": null,
+      "units": "V",
+      "sensitivity_mv_per_eu": 1000,
+      "range_max": 10,
+      "polarity": "positive",
+      "control_group": null,
+      "abort": {
+        "accel_g": null,
+        "velocity_ips": null,
+        "displacement_mil": null
+      }
+    }
+  ]
+}

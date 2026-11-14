@@ -14,7 +14,7 @@
 	import PulseScreen from '../pulse/PulseScreen.svelte';
 	import ShockSchedule from '../shock/ShockSchedule.svelte';
 	import { clock } from '../words';
-	import SrsCapture from './SrsCapture.svelte';
+	import SrsRecord from './SrsRecord.svelte';
 	import SrsControl from './SrsControl.svelte';
 	import SrsEnvelope from './SrsEnvelope.svelte';
 	import SrsIdentification from './SrsIdentification.svelte';
@@ -92,7 +92,7 @@
 	{:else if section === 'limit_channels'}
 		<SrsLimitChannels {srs} />
 	{:else}
-		<SrsCapture {srs} />
+		<SrsRecord {srs} />
 	{/if}
 {/snippet}
 
@@ -103,7 +103,7 @@
 {#snippet station()}<StationPanel acq={srs.acq} />{/snippet}
 
 {#snippet run()}
-	<SrsRunView {srs} {views} {station} {abortKeys} onoverride={() => (overrideOpen = true)} onpopout={(id) => app.openDisplayWindow(id, 'srs')} />
+	<SrsRunView {srs} {views} {station} {abortKeys} onoverride={() => (overrideOpen = true)} onpopout={(id) => app.openDisplayWindow(id, 'srs')} opener={app.srsRunOpen} />
 {/snippet}
 
 <PulseScreen

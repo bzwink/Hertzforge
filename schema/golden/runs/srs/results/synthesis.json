@@ -1,0 +1,73 @@
+{
+  "name": "synthesis",
+  "kind": "srs_synthesis",
+  "abscissa": {
+    "kind": "time",
+    "unit": "s",
+    "array": "time"
+  },
+  "channels": {
+    "responses": [
+      1
+    ]
+  },
+  "fs_hz": 2048,
+  "engine": "wavsyn",
+  "description": "the pulse the configuration was synthesized to at full level and at the configured rate, its velocity and displacement, and its SRS on the bands (band_frequency, achieved); a design, not a measurement",
+  "arrays": [
+    {
+      "name": "time",
+      "dtype": "f8",
+      "shape": [
+        141
+      ],
+      "unit": "s",
+      "offset": 0
+    },
+    {
+      "name": "waveform",
+      "dtype": "f8",
+      "shape": [
+        141
+      ],
+      "unit": "g",
+      "offset": 1128
+    },
+    {
+      "name": "velocity",
+      "dtype": "f8",
+      "shape": [
+        141
+      ],
+      "unit": "in/s",
+      "offset": 2256
+    },
+    {
+      "name": "displacement",
+      "dtype": "f8",
+      "shape": [
+        141
+      ],
+      "unit": "in",
+      "offset": 3384
+    },
+    {
+      "name": "band_frequency",
+      "dtype": "f8",
+      "shape": [
+        7
+      ],
+      "unit": "Hz",
+      "offset": 4512
+    },
+    {
+      "name": "achieved",
+      "dtype": "f8",
+      "shape": [
+        7
+      ],
+      "unit": "g",
+      "offset": 4568
+    }
+  ]
+}

@@ -22,7 +22,7 @@
  * something to draw. Nothing here is the service's preparation, identification or control.
  */
 
-import type { DataSource, LogEntry, LogKind, ReadingRow, RefusalReason, Series, SpectrumView, StationRef, TableView, View } from '../types';
+import type { DataSource, LogEntry, LogKind, ReadingRow, RefusalReason, RunRecordRef, Series, SpectrumView, StationRef, TableView, View } from '../types';
 import type { LawEntry, LawParam } from '../mimo';
 import type {
 	TwrConfig,
@@ -298,6 +298,8 @@ interface Run {
 	calls: { index: number; values: Record<string, number> }[];
 	identification: TwrIdentificationFacts | null;
 	feasibility: TwrState['feasibility'];
+	/** The run's record, from arm on. */
+	record: RunRecordRef | null;
 	records: PlayRecord[];
 	rows: TwrPlayRow[];
 	end: TwrEnd | null;
@@ -664,7 +666,8 @@ export function createTwrMock(host: TwrMockHost): TwrMock {
 			last_play: r.rows.at(-1) ?? null,
 			law: { id: r.law.id, name: r.law.name, version: r.law.version, sha256: r.law.sha256, misses: r.misses },
 			feasibility: r.feasibility,
-			end: r.end
+			end: r.end,
+			...(r.record ? { record: { ...r.record } } : {})
 		};
 	}
 
@@ -995,6 +998,7 @@ export function createTwrMock(host: TwrMockHost): TwrMock {
 			calls: [],
 			identification: null,
 			feasibility: null,
+			record: null,
 			records: [],
 			rows: [],
 			end: null,
@@ -1003,6 +1007,19 @@ export function createTwrMock(host: TwrMockHost): TwrMock {
 			version: 0,
 			prep: prepare(refs.get(config.reference.sha256)!, config)
 		};
+	}
+
+	/** Claim the run's folder at arm, or refuse the arm as the service does when it cannot be written. */
+	function claimRecord(r: Run) {
+		if (r.record) return;
+		const folder = host.recordFolder?.(r.id) ?? `~/Hertzforge_Data/${r.id}`;
+		if (host.record === 'unwritable') {
+			const reason = 'Permission denied';
+			refuse('refused', 'record_unwritable', `The run's record could not be written, so the run did not arm: ${folder} (${reason}). Choose a data folder that can be written.`, { path: folder, reason });
+		}
+		const streams = r.config.record?.streams === false ? 'off' : 'on';
+		r.record = { folder, streams, problem: null };
+		if (streams === 'off') addLog('record', "the run's streams are not recorded: switched off in the setup");
 	}
 
 	function arm(r: Run, ack: string | undefined) {
@@ -1016,6 +1033,7 @@ export function createTwrMock(host: TwrMockHost): TwrMock {
 		}
 		if (ack && !exceeded) refuse('refused', 'override_not_needed', 'Nothing blocks arming; arm without an acknowledgement.');
 		if (r.source === 'HARDWARE' && !r.law.builtin && !r.law.check.hardware) refuse('refused', 'law_not_checked', `${r.law.name} has no passed check for its exact file; check it before it drives hardware.`, { id: r.law.id });
+		claimRecord(r);
 		if (ack) addLog('override', `armed past feasibility: "${ack}"`);
 		r.feasibility = { verdict: r.derived.feasibility.verdict, message: r.derived.feasibility.message };
 		r.derived = { ...r.derived, grid: { ...r.derived.grid, actual: true } };
@@ -1163,6 +1181,11 @@ export function createTwrMock(host: TwrMockHost): TwrMock {
 		};
 		r.call = null;
 		r.rows.push(row);
+		if (host.record === 'problem' && r.record && r.record.streams === 'on' && r.record.problem === null && r.rows.length >= 2) {
+			const problem = 'Recording of the inputs stream stopped: a write failed: No space left on device (os error 28). The run goes on.';
+			r.record = { ...r.record, problem };
+			addLog('record', problem);
+		}
 		r.records.push({ row, err, level });
 		if (r.records.length > RECORDS_HELD) r.records.shift();
 		r.done++;
@@ -1397,6 +1420,7 @@ export function createTwrMock(host: TwrMockHost): TwrMock {
 		if (!isObject(config.reference) || typeof (config.reference as Record<string, unknown>).sha256 !== 'string') bad('config.reference.sha256', 'The configuration names its reference by "sha256".');
 		if (!isObject(config.limits)) bad('config.limits', 'The configuration has no "limits".');
 		if (!isNum((config.limits as Record<string, unknown>).drive_vpk_ceiling)) bad('config.limits.drive_vpk_ceiling', '"drive_vpk_ceiling" is a number of volts peak; it has no default.');
+		if (config.capture != null) bad('config.capture', 'A TWR run is always recorded in its run folder; "capture" is no longer taken. Use "record" to keep or leave out the streams.');
 	}
 
 	// ---- the methods -----------------------------------------------------------------------------------

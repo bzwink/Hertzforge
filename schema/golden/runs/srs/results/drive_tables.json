@@ -1,0 +1,50 @@
+{
+  "name": "drive_tables",
+  "kind": "srs_drive_table",
+  "abscissa": {
+    "kind": "frequency",
+    "unit": "Hz",
+    "array": "frequency"
+  },
+  "channels": {
+    "references": [
+      3
+    ]
+  },
+  "description": "the drive table in force after each pulse's law call: each component's frequency and drive amplitude, and the gains the law applied (NaN before its first call)",
+  "records": {
+    "index": "record",
+    "pulse": "the pulse, from 0"
+  },
+  "arrays": [
+    {
+      "name": "frequency",
+      "dtype": "f8",
+      "shape": [
+        7
+      ],
+      "unit": "Hz",
+      "offset": 0
+    },
+    {
+      "name": "amplitude",
+      "dtype": "f8",
+      "shape": [
+        1,
+        7
+      ],
+      "unit": "V",
+      "offset": 56
+    },
+    {
+      "name": "gains",
+      "dtype": "f8",
+      "shape": [
+        1,
+        7
+      ],
+      "unit": "",
+      "offset": 112
+    }
+  ]
+}

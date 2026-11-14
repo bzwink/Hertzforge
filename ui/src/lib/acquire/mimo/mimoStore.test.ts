@@ -10,7 +10,11 @@ import { createControlServer } from '$lib/protocol/mock/control';
 import { mockSocketFactory } from '$lib/protocol/mock/socket';
 import type { ChannelRow } from '$lib/protocol/types';
 import type { LawEntry, MimoReferenceResult, MimoValidation } from '$lib/protocol/mimo';
+import { RequestError } from '$lib/protocol/client.svelte';
+import type { MimoStatus } from '$lib/protocol/mimo';
+import { RunOpen, workspaceForRun } from '../runOpen.svelte';
 import { AcquireState } from '../store.svelte';
+import { recordProblem } from '../words';
 import { ensureSettings } from './mimoSetup';
 import { MimoState } from './mimoStore.svelte';
 
@@ -94,6 +98,7 @@ async function screen() {
 	await acq.sync();
 	const sent: { method: string; params: Record<string, unknown> }[] = [];
 	let repairAccepted = false;
+	let startRefused = false;
 	const real = client.request.bind(client);
 	// The MIMO methods answer from here; everything else goes to the mock service.
 	client.request = (async (method: string, params: Record<string, unknown> = {}) => {
@@ -103,6 +108,8 @@ async function screen() {
 		if (method === 'mimo_random.report') return { report: null };
 		if (method === 'mimo_random.reference.build_breakpoints') return refResult(repairAccepted || params.repair === true);
 		if (method === 'mimo_random.setup') return { validation: VALIDATION };
+		if (method === 'mimo_random.start' && startRefused)
+			throw new RequestError('refused', "The run's record could not be written, so the run did not arm: /data/x (Read-only file system). Choose a data folder that can be written.", 'mimo_random.start', 'record_unwritable', { path: '/data/x', reason: 'Read-only file system' });
 		return real(method, params);
 	}) as typeof client.request;
 	const mimo = new MimoState(acq, { local: null, checkDelayMs: 0 });
@@ -110,7 +117,7 @@ async function screen() {
 	// What the store's watch does as rows change.
 	ensureSettings(acq.rows, mimo.setup);
 	await mimo.sync();
-	return { client, acq, mimo, sent, accept: () => (repairAccepted = true) };
+	return { client, acq, mimo, sent, accept: () => (repairAccepted = true), refuseStart: () => (startRefused = true) };
 }
 
 describe('the MIMO Random store', () => {
@@ -167,5 +174,47 @@ describe('the MIMO Random store', () => {
 		expect(mimo.primary).toBe('apply');
 		expect(mimo.actions.apply.enabled).toBe(false);
 		expect(mimo.actions.apply.reason).toBe('Take control to apply the setup.');
+	});
+
+	it("sends the run record's words with the setup, and sizes an hour of its streams", async () => {
+		const { mimo, sent } = await screen();
+		mimo.setup.record = { operator: 'A. Operator', article: 'Bracket', notes: '', document: '', clause: '4.2', streams: true };
+		expect(mimo.fieldErrors['specification.document']).toEqual(['Name the document this clause is from.']);
+		expect(mimo.counts.record.errors).toBe(1);
+		mimo.setup.record.document = 'Test procedure 12';
+		expect(mimo.counts.record.errors).toBe(0);
+		mimo.setup.reference.acceptRepair = true;
+		await mimo.buildReference();
+		await mimo.checkSetup();
+		const dry = sent.filter((s) => s.method === 'mimo_random.setup').at(-1)!;
+		const setup = dry.params.setup as Record<string, unknown>;
+		expect([setup.operator, setup.article, setup.specification, setup.record]).toEqual(['A. Operator', 'Bracket', { document: 'Test procedure 12', clause: '4.2' }, { streams: true }]);
+		// four enabled rows at the setup's rate
+		expect([mimo.recordChannels, mimo.recordRateHz]).toEqual([4, 8192]);
+	});
+
+	it('says in words when the run\'s record cannot be written, and the run does not start', async () => {
+		const { mimo, refuseStart } = await screen();
+		refuseStart();
+		expect(await mimo.start()).toBe(false);
+		expect(mimo.refusal?.reason).toBe('record_unwritable');
+		expect(mimo.refusal?.title).toBe("The Run's Record Cannot Be Written");
+		expect(mimo.refusal?.facts).toEqual(['Path: /data/x', 'Reason: Read-only file system']);
+	});
+
+	it('shows the folder from arm on, a problem as a notice, and opens a finished run in the Random workspace', async () => {
+		const { mimo } = await screen();
+		const record = { folder: '/data/runs/20261113-140000_mimo_random_m-0003', streams: 'on' as const, problem: null };
+		mimo.status = { run_id: 'm-0003', state: 'running', phase: 'engaged', record } as unknown as MimoStatus;
+		expect(mimo.run?.record?.folder).toBe(record.folder);
+		expect(recordProblem(mimo.run?.record, false)).toBeNull();
+		mimo.status = { ...mimo.status, record: { ...record, problem: 'the inputs stream stopped: the disk is full' } } as MimoStatus;
+		expect(recordProblem(mimo.run?.record, false)?.text).toContain('The inputs stream stopped');
+		expect(workspaceForRun('mimo_random')).toBe('random');
+		const shown: string[] = [];
+		const opener = new RunOpen({ bring: async () => ['Specification', 'identification_frf'], show: (w) => shown.push(w) }, 'mimo_random');
+		expect(await opener.open(record.folder)).toBe(true);
+		expect(opener.at(record.folder)).toBe('done');
+		expect(shown).toEqual(['random']);
 	});
 });

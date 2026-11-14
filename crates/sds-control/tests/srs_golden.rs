@@ -284,6 +284,7 @@ fn running() -> SrsView {
         end: None,
         fire: None,
         streaming: true,
+        record: None,
     }
 }
 

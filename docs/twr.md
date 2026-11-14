@@ -8,9 +8,9 @@ is judged against, the playback schedule and every abort are the controller's, n
 drive is in volts throughout, held under a drive ceiling that the operator gives.
 
 This guide is written for the test engineer running the test. It follows the order of a run: the
-station and channels, the reference, identification, control, the schedule, limits and capture,
-then the run itself. TWR shares its run bar, station panel, channel table and control-law panel with
-the other test types.
+station and channels, the reference, identification, control, the schedule, limits and the run's
+record, then the run itself. TWR shares its run bar, station panel, channel table and control-law
+panel with the other test types.
 
 ## What the Test Does
 
@@ -171,28 +171,35 @@ are the correction share, the growth limit, and a backoff for the first drive.
   is blocked until the operator acknowledges it in words, which the run log keeps. A ceiling left off
   is not checked.
 
-## Capture
+## The Run's Record
 
-Whether capture starts with the run, and the run folder's name under the program's local data
-folder; when that name is taken, the run gets the next free one (`twr_run-2`, `twr_run-3`, ...).
-Fields kept with the run (a run number, an operator) are listed here.
+Every run is recorded in its run folder under the program's local data folder
+(`docs/run-folder.md`, "What a TWR Run Saves"); there is no separate capture to
+switch on. The Run Record panel takes who ran it, the article, notes and the
+document and clause it is run to, and whether the folder keeps the time
+histories. Fields kept with the run (a run number, a serial number) are listed
+here too, and travel in the controller's own report.
 
-With capture on, recording starts after the identification and any review hold, before the first
-play, and the run folder holds:
+From the moment the run arms, the folder holds the setup, the channel table,
+the law and the run's log. It then holds, written as the run goes:
 
-- the control channel's response to each play, one play after another at the station rate, with
-  the channel table and the run's settings beside it. Only the control channel is recorded; the
-  identification, the pads between plays, a play cut short and the drive are not.
-- the reference as imported (`reference.bin`, described by `reference.json`), written once.
-- the control law's record (`law.json`) and every call made to it (`law_calls.bin` and
-  `law_calls.jsonl`): the play it followed, that play's level and error, whether the call was used, and the drive
-  it returned. The law is called
-  after an iteration play that misses its gate, and after a playback play only when **Keep correcting
-  during playback** is on, and never while corrections are frozen, so a play that met its gate
-  leaves no call.
+- every enabled input and the drive as played, as one shot for the
+  identification and one for every play: each play's record and the rest after
+  it, the play a protection ended the run on and one a stop cut short included,
+  as far as the station took them;
+- the reference as imported and the target it was prepared into at full level;
+- the identification's transfer function and coherence;
+- each play's level, its rms, peak and spectral error, whether it met the gate
+  and how it ended, written as the play is judged, the last play included;
+- every call of the control law and the drive it returned. The law is called
+  at the seed, after an iteration play that misses its gate, and after a
+  playback play only when **Keep correcting during playback** is on, and never
+  while corrections are frozen, so a play that met its gate leaves no call.
 
-With capture off, nothing is written to disk. The **Records** on the Plays page come from the
-control service's memory either way, and only for the most recent eight plays.
+With the time histories left out, the folder keeps everything but the shots.
+The **Records** on the Plays page come from the control service's memory, for
+the most recent eight plays; a finished run opens in Transient Analysis from
+the run card with **Open in Analysis**.
 
 ## The Run
 

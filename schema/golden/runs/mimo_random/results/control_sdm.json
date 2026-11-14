@@ -1,0 +1,52 @@
+{
+  "name": "control_sdm",
+  "kind": "cpsd",
+  "abscissa": {
+    "kind": "frequency",
+    "unit": "Hz",
+    "start": 160.0,
+    "step": 2.0
+  },
+  "channels": {
+    "responses": [
+      1,
+      2,
+      3,
+      4
+    ],
+    "references": [
+      1,
+      2,
+      3,
+      4
+    ],
+    "labels": [
+      "Control 1",
+      "Control 2",
+      "Control 3",
+      "Control 4"
+    ]
+  },
+  "band": [
+    80,
+    84
+  ],
+  "convention": "file",
+  "description": "the controlled quantities' full spectral matrix referred to full level, at the first loop at full level, on the cadence the setup derives and at the last loop at full level",
+  "records": {
+    "index": "loop_index"
+  },
+  "arrays": [
+    {
+      "name": "values",
+      "dtype": "c16",
+      "shape": [
+        4,
+        4,
+        4
+      ],
+      "unit": "g^2/Hz",
+      "offset": 0
+    }
+  ]
+}

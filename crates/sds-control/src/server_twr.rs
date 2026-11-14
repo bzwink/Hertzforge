@@ -250,6 +250,8 @@ impl Service {
                 .unwrap_or_else(engine::service_engine_factory),
             sim_speed: self.opts.sim_speed,
             timeout_s: self.opts.timeout.as_secs_f64(),
+            derived: derived.to_json(),
+            record: self.opts.record.clone(),
         };
         let (tx, rx) = std::sync::mpsc::channel();
         trun::spawn(plan, initial.clone(), shared.clone(), data.clone(), rx)
@@ -342,7 +344,7 @@ impl Service {
 
     /// What a run arms on now: the table, the selected station and its law.
     async fn twr_arm_context(&self, run: &TwrRun) -> Result<ArmContext, MethodError> {
-        let (tbl, station_plan, hardware) = {
+        let (tbl, station_plan, hardware, revision, devices) = {
             let inner = self.inner.lock().await;
             let report = table::validate(&inner.table.table, &inner.ctx());
             if !report.errors.is_empty() {
@@ -368,7 +370,13 @@ impl Service {
                     )
                 }
             };
-            (inner.table.table.clone(), plan, hardware)
+            (
+                inner.table.table.clone(),
+                plan,
+                hardware,
+                inner.table.revision,
+                inner.stations.devices().to_vec(),
+            )
         };
         let id = run.wire.law.id.clone();
         let wire = run.wire.clone();
@@ -436,11 +444,13 @@ impl Service {
             station: station_plan,
             scanner: self.opts.scanner.clone(),
             data_root: self.opts.data_root.clone(),
-            capture_root: Some(self.opts.records_root()),
+            records_root: self.opts.records_root(),
             bind: self.opts.bind.clone(),
             stored: run.stored.clone(),
             facts,
             law,
+            revision,
+            devices,
         })
     }
 

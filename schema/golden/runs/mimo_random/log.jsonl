@@ -1,0 +1,13 @@
+{"seq":0,"at_unix":1794240000.25,"frame":0,"kind":"operator","text":"started: inline, 8 points from 160 to 166 Hz, on 4 grid lines"}
+{"seq":1,"at_unix":1794240001.25,"frame":0,"kind":"note","text":"Armed: 4 drives, 4 controls (4 in the control space), 0 limit channels, 1025 lines of 2.000 Hz, band lines 80 to 83, seed 0x4d494d4f52414e44."}
+{"seq":2,"at_unix":1794240002.25,"frame":0,"kind":"state","text":"idle to noise floor","data":{"from":"idle","to":"noise_floor"}}
+{"seq":3,"at_unix":1794240003.25,"frame":24576,"kind":"note","text":"Noise floor measured over 20 frames."}
+{"seq":4,"at_unix":1794240004.25,"frame":24576,"kind":"state","text":"noise floor to sys id","data":{"from":"noise_floor","to":"sys_id"}}
+{"seq":5,"at_unix":1794240005.25,"frame":135168,"kind":"note","text":"Identification measured: 65 frames, controls at -21.8 dB against the reference, lag 323 frames."}
+{"seq":6,"at_unix":1794240006.25,"frame":135168,"kind":"state","text":"sys id to gate","data":{"from":"sys_id","to":"gate"}}
+{"seq":7,"at_unix":1794240007.25,"frame":135168,"kind":"state","text":"gate to predict","data":{"from":"gate","to":"predict"}}
+{"seq":8,"at_unix":1794240008.25,"frame":135168,"kind":"state","text":"predict to engaged","data":{"from":"predict","to":"engaged"}}
+{"seq":9,"at_unix":1794240009.25,"frame":141312,"kind":"state","text":"engaged to full level","data":{"from":"engaged","to":"full_level"}}
+{"seq":10,"at_unix":1794240010.25,"frame":153600,"kind":"note","text":"Controlled stop: ramping down over 0.5 s, then stopping."}
+{"seq":11,"at_unix":1794240011.25,"frame":159744,"kind":"state","text":"full level to stopped","data":{"from":"full_level","to":"stopped"}}
+{"seq":12,"at_unix":1794240012.25,"frame":159744,"kind":"operator","text":"finished: completed"}

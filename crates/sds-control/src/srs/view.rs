@@ -324,6 +324,17 @@ pub struct SrsView {
     pub fire: Option<(u64, u64)>,
     /// `srs.live` frames are due: from arm.
     pub streaming: bool,
+    /// The run's record, once it is armed.
+    pub record: Option<RecordRef>,
+}
+
+/// The run's record, from arm on: its folder, whether it holds the streams, and
+/// the latest problem in words.
+pub use crate::random::view::RecordRef;
+
+fn record_json(r: &RecordRef) -> Value {
+    json!({"folder": r.folder, "streams": if r.streams { "on" } else { "off" },
+           "problem": r.problem})
 }
 
 /// The `srs.state` object; `None` is the unconfigured service.
@@ -343,7 +354,7 @@ pub fn state_json(v: Option<&SrsView>) -> Value {
         "class": v.station.class,
         "devices": v.station.devices.iter().map(|(id, sn)| json!({"id": id, "serial": sn})).collect::<Vec<_>>(),
     });
-    json!({
+    let mut out = json!({
         "run_id": v.run_id,
         "state": v.state.name(),
         "phase": v.phase,
@@ -394,7 +405,11 @@ pub fn state_json(v: Option<&SrsView>) -> Value {
             json!({"verdict": verdict, "message": message})
         }),
         "end": v.end.as_ref().map_or(Value::Null, End::to_json),
-    })
+    });
+    if let (Some(r), Value::Object(m)) = (&v.record, &mut out) {
+        m.insert("record".into(), record_json(r));
+    }
+    out
 }
 
 /// What decides whether an `srs.state` event is due: everything but the clocks.
@@ -457,6 +472,7 @@ pub fn configured_view(
         end: None,
         fire: None,
         streaming: false,
+        record: None,
     }
 }
 
