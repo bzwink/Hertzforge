@@ -11,6 +11,7 @@ import type {
 	ItemReason,
 	LadderMode,
 	ReportItem,
+	RunRecordRef,
 	StationRef,
 	View
 } from './types';
@@ -189,7 +190,12 @@ export interface SrsConfig {
 	limits: SrsLimits;
 	limit_channels?: SrsLimitChannels | null;
 	feasibility?: ShockFeasibility | null;
-	capture?: { auto_start: boolean; run_name: string };
+	/** The run's record, as Random's: the operator's words, what the test is run to, and whether the folder keeps the time histories. */
+	operator?: string;
+	article?: string;
+	notes?: string;
+	specification?: { document: string; clause: string } | null;
+	record?: { streams?: boolean } | null;
 	metadata?: { key: string; label: string; value: string }[];
 }
 
@@ -433,6 +439,8 @@ export interface SrsState {
 	law: ShockLawRef | null;
 	feasibility: FeasibilityVerdict | null;
 	end: SrsEnd | null;
+	/** The run's record, from arm on: its folder, whether it keeps the time histories, the latest problem. */
+	record?: RunRecordRef;
 }
 
 /** `srs.log`, its event, `srs.pulses` and `srs.pulse`'s params are classical shock's. */
