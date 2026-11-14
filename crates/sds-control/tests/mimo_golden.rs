@@ -141,6 +141,7 @@ fn configured() -> MimoStatus {
         excluded: Vec::new(),
         end: None,
         streaming: false,
+        record: None,
     }
 }
 
@@ -257,6 +258,11 @@ fn a_running_status_is_the_golden_event() {
             ],
         }),
         streaming: true,
+        record: Some(sds_control::random::view::RecordRef {
+            folder: "/data/runs/20261113-140000_mimo_random_m-0003".into(),
+            streams: true,
+            problem: None,
+        }),
         ..configured()
     };
     let facts = RunFacts {
@@ -474,6 +480,7 @@ fn the_mimo_data_frame_is_built_byte_for_byte() {
         state: State::Running,
         phase: "full_level",
         streaming: true,
+        record: None,
         ..configured()
     };
     let plots = [

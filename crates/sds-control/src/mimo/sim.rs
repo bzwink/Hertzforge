@@ -748,6 +748,7 @@ impl MimoRunDriver for SimulatedMimoDriver {
             excluded: Vec::new(),
             end: self.end.clone(),
             streaming: self.streaming(),
+            record: None,
         }
     }
 

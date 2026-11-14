@@ -1,0 +1,43 @@
+{
+  "name": "identification_noise",
+  "kind": "cpsd",
+  "abscissa": {
+    "kind": "frequency",
+    "unit": "Hz",
+    "start": 160.0,
+    "step": 2.0
+  },
+  "channels": {
+    "responses": [
+      1,
+      2,
+      3,
+      4
+    ],
+    "references": [
+      1,
+      2,
+      3,
+      4
+    ]
+  },
+  "band": [
+    80,
+    84
+  ],
+  "convention": "file",
+  "description": "the identification measured in this run: the control channels' spectral matrix with the drives off (the noise floor)",
+  "arrays": [
+    {
+      "name": "values",
+      "dtype": "c16",
+      "shape": [
+        4,
+        4,
+        4
+      ],
+      "unit": "g^2/Hz",
+      "offset": 0
+    }
+  ]
+}

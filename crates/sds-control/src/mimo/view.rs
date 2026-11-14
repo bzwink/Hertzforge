@@ -119,6 +119,7 @@ pub fn status_json(f: Option<(&RunFacts<'_>, &MimoStatus)>) -> Value {
             "at_level_s": null, "remaining_at_level_s": null, "loop": 0, "alarm": false,
             "control_error_db": [], "gates": null, "caps": [], "drive_rms_v": [], "law": null,
             "faults": [], "override": null, "overrides": [], "prediction": null, "excluded": [], "end": null,
+            "record": null,
         });
     };
     let mut m = Map::new();
@@ -179,6 +180,10 @@ pub fn status_json(f: Option<(&RunFacts<'_>, &MimoStatus)>) -> Value {
     );
     m.insert("excluded".into(), Value::from(s.excluded.clone()));
     m.insert("end".into(), end_json(&s.end));
+    m.insert(
+        "record".into(),
+        s.record.as_ref().map_or(Value::Null, |r| r.to_json()),
+    );
     Value::Object(m)
 }
 
@@ -188,7 +193,7 @@ pub fn status_key(s: Option<&MimoStatus>) -> String {
     match s {
         None => "unconfigured".into(),
         Some(s) => format!(
-            "{}|{}|{:?}|{}|{}|{}|{}|{}",
+            "{}|{}|{:?}|{}|{}|{}|{}|{}|{:?}",
             s.state.name(),
             s.phase,
             s.level_db,
@@ -196,7 +201,8 @@ pub fn status_key(s: Option<&MimoStatus>) -> String {
             s.alarm,
             s.faults.len(),
             s.prediction.as_ref().map_or(0, |p| p.iteration),
-            s.end.is_some()
+            s.end.is_some(),
+            s.record.as_ref().map(|r| (&r.folder, &r.problem))
         ),
     }
 }

@@ -1859,7 +1859,14 @@
         "backend": {"oneOf": [
           {"type": "object", "required": ["kind"], "additionalProperties": false,
            "properties": {"kind": {"enum": ["sim", "ni"]}}},
-          {"type": "null"}]}
+          {"type": "null"}]},
+        "operator": {"type": "string"},
+        "article": {"type": "string"},
+        "notes": {"type": "string"},
+        "specification": {"type": ["object", "null"], "additionalProperties": false,
+                          "properties": {"document": {"type": "string"}, "clause": {"type": "string"}}},
+        "record": {"type": ["object", "null"], "additionalProperties": false,
+                   "properties": {"streams": {"type": "boolean"}}}
       }
     },
     "mimoLawChoice": {
@@ -2072,7 +2079,7 @@
       "required": ["run_id", "state", "phase", "title", "source", "station", "grid", "clock", "shape",
                    "mode", "levels_db", "level_db", "elapsed_s", "at_level_s", "remaining_at_level_s",
                    "loop", "alarm", "control_error_db", "gates", "caps", "drive_rms_v", "law",
-                   "faults", "override", "overrides", "prediction", "excluded", "end"],
+                   "faults", "override", "overrides", "prediction", "excluded", "end", "record"],
       "additionalProperties": false,
       "properties": {
         "run_id": {"type": ["string", "null"]},
@@ -2104,7 +2111,8 @@
         "overrides": {"$ref": "#/$defs/mimoOverrides"},
         "prediction": {"oneOf": [{"$ref": "#/$defs/mimoPrediction"}, {"type": "null"}]},
         "excluded": {"type": "array", "items": {"$ref": "#/$defs/mimoPosition"}},
-        "end": {"$ref": "#/$defs/runEnd"}
+        "end": {"$ref": "#/$defs/runEnd"},
+        "record": {"oneOf": [{"$ref": "#/$defs/runRecordRef"}, {"type": "null"}]}
       },
       "allOf": [
         {"if": {"properties": {"state": {"const": "finished"}}},

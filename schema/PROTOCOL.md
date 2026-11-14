@@ -1076,7 +1076,7 @@ plain words: it never names a protocol method.
 | `mixed_timing_families` | `refused` | The selection spans devices that cannot share one sample clock | `families` |
 | `not_enough_channels` | `refused` | The selected devices have fewer channels than the table uses | `want_inputs`, `want_outputs`, `have_inputs`, `have_outputs` |
 | `hardware_busy` | `refused` | Another program holds the NI hardware | `holder` |
-| `record_unwritable` | `refused` | `random.arm`, `random.start`, `sine.arm`, `sine.start`, `shock.arm`, `shock.start`, `srs.arm`, `srs.start`, `twr.arm` or `twr.start`: the run's record (its folder, `run.json`, `table.json` or `setup.json`) cannot be written in the data folder; nothing is armed | `path`, `reason` |
+| `record_unwritable` | `refused` | `random.arm`, `random.start`, `sine.arm`, `sine.start`, `shock.arm`, `shock.start`, `srs.arm`, `srs.start`, `twr.arm`, `twr.start` or `mimo_random.start`: the run's record (its folder, `run.json`, `table.json` or `setup.json`) cannot be written in the data folder; nothing is armed | `path`, `reason` |
 | `stale_revision` | `refused` | `channels.set` quoted a revision that is no longer current | `current`, `provided` |
 | `table_invalid` | `bad_request` | The channel table has errors | `errors`, `warnings` |
 | `config_invalid` | `bad_request` | The Random, classical shock, SRS shock, Sine, Mixed Mode, TWR, Explorer or Recorder configuration has errors (for Explorer and the Recorder, also at `explorer.start` or `recorder.start` when the table no longer carries the run) | `errors`, `warnings` |
@@ -1823,6 +1823,9 @@ identification and goes to the gates. `{"identification"}` is
 | `control` | as shown | `frf` `hold` (the FRF from identification) or `update` (re-estimated each loop); ramp times; consecutive loops out of tolerance before the divergence abort; `frf_blend` (under `update`, the weight of each loop's estimate against identification's, above 0 and at most 1, default 0.5); `cap_up_db` and `cap_down_db` (the core's per-loop rise and fall caps on each drive's PSD, default 3.5 and 6 dB, the rise at most 6); `law_budget` (the law call's time budget, a fraction of the loop, default 0.25) and `law_misses` (unusable law calls in a row that stop the run, 1 to 100, default 3); `soft_start_db` (single-output Random's soft start: the loop engages this many dB below the lowest scheduled level and ramps to the first rung over the level ramp, or 5 s when that is 0, with the envelope's bands widened by 6 dB until it arrives; the first rung's dwell starts there; 0 to 30, default 9, 0 for none) |
 | `schedule` | (required) | Single-output Random's schedule |
 | `backend` | the selected station | `{"kind":"sim"}` or `{"kind":"ni"}`; must be the station selected (`backend_not_selected` otherwise) |
+| `operator`, `article`, `notes` | empty | The operator's words for the run's record (`docs/run-folder.md`) |
+| `specification` | none | `{"document","clause"}`: the test document the run answers, for its record |
+| `record` | `{"streams":true}` | `streams` false: the run's record keeps no time histories |
 
 A setup whose shape is wrong (a missing or mistyped field) is refused `bad_params` naming the
 field. Everything about its content is in the validation report, so the operator sees every
@@ -1882,7 +1885,9 @@ alarm, faults or prediction.
  "gates":{"coherence_min":0.962,"coherence_floor":0.5,"condition_max":12.5,"condition_limit":1000,"passed":true},
  "caps":[1,0.875],"drive_rms_v":[0.412,0.388],
  "law":{"id":"pinv_closed","name":"pseudo-inverse, closed loop","version":"1.0.0","sha256":null},
- "faults":[],"override":null,"prediction":{...},"end":null}
+ "faults":[],"override":null,"prediction":{...},"end":null,
+ "record":{"folder":"/home/operator/Hertzforge_Data/20261113-140000_mimo_random_m-0003",
+           "streams":"on","problem":null}}
 ```
 
 | `state` | `phase` | Meaning |
@@ -1917,7 +1922,12 @@ acceleration (`{"verdict","message"}`, `verdict` `pass`, `advisory`, `exceeded` 
 (`mimo_random.exclude`). `faults` lists `{"kind","message"}`.
 
 - **`mimo_random.start`** arms the station and runs identification, then holds for review when
-  `identification.review` is true or a gate failed; otherwise it engages. It answers at once.
+  `identification.review` is true or a gate failed; otherwise it engages. It answers at once. Every
+  run writes its run folder from arm (`docs/run-folder.md`, "What a MIMO Random Run Saves"); the
+  start is refused `record_unwritable`, with the path and the reason in `detail`, when the record
+  cannot be written, and nothing has been driven then. `record` in the status is
+  `{"folder","streams","problem"}` from arm on (null before): the run's folder, `on` or `off`, and
+  the latest problem writing it, in words, or null. A problem never stops the run.
 - **`mimo_random.proceed`** engages from `awaiting_review`. After a failed gate it is refused
   `gate_failed`.
 - **`mimo_random.override`** goes on past what holds the run, in the operator's own words: a

@@ -1,0 +1,142 @@
+{
+  "test": "mimo_random",
+  "run_uid": "golden-mimo-random",
+  "run_id": "m-0001",
+  "title": "Golden MIMO Random",
+  "operator": "Operator",
+  "article": "Bracket",
+  "notes": "the golden run folder",
+  "specification": {
+    "document": "Example procedure",
+    "clause": "4.1"
+  },
+  "source": "SIM",
+  "sim": {
+    "model": "modal",
+    "parameters": {
+      "sample_rate_hz": 4096.0,
+      "resonances": [
+        {
+          "f_hz": 250.0,
+          "q": 20.0
+        }
+      ],
+      "noise_level": 0.0001,
+      "feedthrough": 0.001,
+      "transport_delay_samples": 0,
+      "inputs": 4,
+      "outputs": 4
+    },
+    "seed": 1296649551
+  },
+  "station": {
+    "kind": "sim",
+    "class": "sim",
+    "label": "HERTZFORGE-SIM",
+    "backend": "hertzforge-hal-sim",
+    "devices": [],
+    "clock": "shared"
+  },
+  "grid": {
+    "fs_hz": 4096,
+    "n_pts": 2048,
+    "df_hz": 2,
+    "lines": 1025,
+    "loop_s": 1.25
+  },
+  "build": {
+    "version": "0.0.0",
+    "commit": "0000000000000000000000000000000000000000",
+    "dirty": false
+  },
+  "armed": {
+    "unix": 1794240000.25,
+    "utc_offset_s": -25200
+  },
+  "start": {
+    "unix": 1794240000.25,
+    "utc_offset_s": -25200,
+    "station_frame": 0
+  },
+  "recording": {
+    "streams": "on"
+  },
+  "schema": "hertzforge-run/1",
+  "streams": [
+    {
+      "name": "inputs",
+      "kind": "inputs",
+      "channels": [
+        1,
+        2,
+        3,
+        4
+      ]
+    },
+    {
+      "name": "drives",
+      "kind": "drives",
+      "channels": [
+        5,
+        6,
+        7,
+        8
+      ]
+    }
+  ],
+  "results": [
+    {
+      "name": "reference",
+      "kind": "sdm_reference"
+    },
+    {
+      "name": "identification_frf",
+      "kind": "frf"
+    },
+    {
+      "name": "identification_coherence",
+      "kind": "coherence"
+    },
+    {
+      "name": "identification_response",
+      "kind": "cpsd"
+    },
+    {
+      "name": "identification_noise",
+      "kind": "cpsd"
+    },
+    {
+      "name": "identification_drive",
+      "kind": "cpsd"
+    },
+    {
+      "name": "identification_cross",
+      "kind": "cpsd"
+    },
+    {
+      "name": "identification",
+      "kind": "mimo_identification"
+    },
+    {
+      "name": "law_calls",
+      "kind": "mimo_law_calls"
+    },
+    {
+      "name": "drive_spectra",
+      "kind": "psd"
+    },
+    {
+      "name": "control_spectra",
+      "kind": "psd"
+    },
+    {
+      "name": "control_sdm",
+      "kind": "cpsd"
+    },
+    {
+      "name": "drive_sdm",
+      "kind": "cpsd"
+    }
+  ],
+  "complete": true
+}

@@ -83,7 +83,6 @@ ui/src/lib/acquire                  the test screens: setups as the operator bui
 ui/src/lib/tables                   the channel and breakpoint table files the shell reads and writes
 
 # The seam on the analysis side
-src/hertzforge/io/mimo_run_convert.py      turns a multiple-output Random run into analysis objects
 src/hertzforge/io/run_folder.py           reads a run folder: the manifest, the table, the setup, the log, the streams, the results
 src/hertzforge/io/run_convert.py          turns a run folder into analysis objects; the one mapping between a control channel row and the channel table
 src/hertzforge/core/run_record.py         the control service's record of a run, as a project holds it
@@ -93,4 +92,4 @@ src/hertzforge/core/channel_table.py       the channel table both sides use
 docs/hforge-format.md#channel_table        how a channel table is stored in a project
 docs/run-folder.md                         the run folder: what a control run leaves on disk
 docs/hforge-format.md#breakpoint_table     how a profile's breakpoint table is stored in a project
-docs/hforge-format.md#run-a-mimo-random-run-proposal  how a run is stored in a project
+docs/hforge-format.md#mimo-random-runs   how a MIMO Random run reaches a project

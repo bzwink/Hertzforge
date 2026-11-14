@@ -1,0 +1,55 @@
+{
+  "name": "identification",
+  "kind": "mimo_identification",
+  "abscissa": {
+    "kind": "frequency",
+    "unit": "Hz",
+    "start": 160.0,
+    "step": 2.0
+  },
+  "channels": {
+    "controls": [
+      1,
+      2,
+      3,
+      4
+    ],
+    "drives": [
+      5,
+      6,
+      7,
+      8
+    ]
+  },
+  "band": [
+    80,
+    84
+  ],
+  "description": "the identification measured in this run: the transfer function's condition number in the control space per line, and the rms each drive played",
+  "setup_hash": "f0a144cd54830fff",
+  "level_db": -21.80143547178828,
+  "frames": 65,
+  "steps": 6,
+  "lag_frames": 323,
+  "loaded": false,
+  "arrays": [
+    {
+      "name": "condition",
+      "dtype": "f8",
+      "shape": [
+        4
+      ],
+      "unit": "",
+      "offset": 0
+    },
+    {
+      "name": "drive_vrms",
+      "dtype": "f8",
+      "shape": [
+        4
+      ],
+      "unit": "V",
+      "offset": 32
+    }
+  ]
+}

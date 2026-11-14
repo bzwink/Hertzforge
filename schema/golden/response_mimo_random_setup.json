@@ -85,7 +85,8 @@
    "overrides": [],
    "prediction": null,
    "excluded": [],
-   "end": null
+   "end": null,
+   "record": null
   },
   "validation": {
    "ok": true,
