@@ -417,6 +417,10 @@ async fn explorer_a_stalled_writer_leaves_the_output_unchanged() {
     async fn timed(delay: Duration) -> Took {
         let mut o = opts();
         o.record.write_delay = delay;
+        // The taps' buffers made before the run hold a few blocks only, so a stalled
+        // writer has them all within a second: a tap that waited for one would stall
+        // the station's thread, which plays the output.
+        o.record.stream_buffer_s = 0.0;
         let mut c = client(o).await;
         c.ok(
             "explorer.configure",
