@@ -777,18 +777,11 @@ def delete_entities(project: Any, params: dict[str, Any]) -> list[dict]:
             report = project.delete_element_groups(name, ids)
     except ValueError as error:
         raise refused(str(error)) from None
-    words = {'nodes': 'Nodes', 'elements': 'Elements', 'groups': 'Element groups',
-             'coordinate_systems': 'Coordinate systems',
-             'nodes_reassigned': 'Node references moved to the first system'}
-    rows = [v.row(words.get(key, key.replace('_', ' ').capitalize()), float(count), '',
-                  'info')
-            for key, count in report.items()]
     singular = {'nodes': 'node', 'elements': 'element', 'groups': 'element group',
                 'coordinate_systems': 'coordinate system'}
     removed = ', '.join(f'{count} {singular[key]}{"s" * (count != 1)}'
                         for key, count in report.items() if count and key in singular)
-    return [*_shown(name, geometry, kind, f'removed {removed}' if removed else ''),
-            v.reading(f'Deleted from {name}', rows)]
+    return _shown(name, geometry, kind, f'removed {removed}' if removed else '')
 
 
 # ---- turning and sliding a coordinate system ----------------------------------------

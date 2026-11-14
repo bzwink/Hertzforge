@@ -70,10 +70,9 @@ def test_what_the_groups_cannot_take_is_refused(project, given, match):
     assert project['Geometry'].group_properties == {}
 
 
-def test_coincident_nodes_are_merged_and_counted(project):
-    (reading,) = run(project, 'project.merge_coincident_nodes', keep=True)
-    rows = {row['label']: row['value'] for row in reading['rows']}
-    assert rows['Nodes before'] == rows['Nodes now'] + rows['Nodes merged away']
+def test_coincident_nodes_are_merged_and_drawn(project):
+    (view,) = run(project, 'project.merge_coincident_nodes', keep=True)
+    assert view['view'] == 'shape3d', 'the geometry drawn, nothing said'
 
 
 def _parts():
@@ -129,10 +128,10 @@ def test_deleting_an_element_group_takes_its_elements():
 def test_a_patch_ties_to_a_group_by_name():
     project = _parts()
     patch = project['Plate'].elements_in('foot')[:1]
-    (reading,) = run(project, 'project.tie_elements', geometry='Plate', keep=True,
-                     elements=str(int(patch[0])), to='floor')
-    found = {row['label']: row['value'] for row in reading['rows']}
-    assert found['Links added'] == 4 and found['Links in group'] == '3'
+    (view,) = run(project, 'project.tie_elements', geometry='Plate', keep=True,
+                  elements=str(int(patch[0])), to='floor')
+    assert view['view'] == 'shape3d'
+    assert len(project['Plate'].elements_in(3)) == 4, 'four links, in a group of their own'
     with pytest.raises(ProtocolError, match='name what the patch ties to'):
         run(project, 'project.tie_elements', geometry='Plate', elements='1', keep=True)
 
@@ -169,9 +168,8 @@ def test_merge_marks_the_places_and_a_click_leaves_one_out(validate):
                          toggle=str(places[0]))
     assert view['pick']['off'] == 0, 'a second click puts it back'
     (done,) = run(project, 'project.merge_coincident_nodes', left_out=str(places[0]), keep=True)
-    rows = {row['label']: row['value'] for row in done['rows']}
-    assert rows['Nodes merged away'] == 3 and rows['Places left out'] == 1
-    assert project['Geometry'].num_nodes == before - 3
+    assert done['view'] == 'shape3d'
+    assert project['Geometry'].num_nodes == before - 3, 'one place of four left out'
 
 
 def test_merge_leaves_every_place_out_with_all(validate):
@@ -179,8 +177,7 @@ def test_merge_leaves_every_place_out_with_all(validate):
     before = project['Geometry'].num_nodes
     _reading, view = run(project, 'project.merge_coincident_nodes', left_out='all')
     assert view['pick']['off'] == 4
-    (done,) = run(project, 'project.merge_coincident_nodes', left_out='all', keep=True)
-    assert {row['label']: row['value'] for row in done['rows']}['Nodes merged away'] == 0
+    run(project, 'project.merge_coincident_nodes', left_out='all', keep=True)
     assert project['Geometry'].num_nodes == before
 
 
@@ -198,9 +195,12 @@ def test_align_marks_each_move_and_a_click_leaves_one_out(validate):
     wire_views([reading, view], validate)
     moves = view['pick']['ids']
     assert len(moves) == 16
+    before = project['Wing'].node_xyz.copy()
     (done,) = run(project, 'project.align_meshes', geometry='Wing', left_out=str(moves[0]),
                   keep=True)
-    assert {row['label']: row['value'] for row in done['rows']}['Nodes moved'] == 15
+    assert done['view'] == 'shape3d'
+    moved = np.linalg.norm(project['Wing'].node_xyz - before, axis=1) > 0
+    assert moved.sum() == 15
 
 
 def test_align_meshes_moves_the_coarser_mesh_onto_the_finer():
@@ -213,10 +213,11 @@ def test_align_meshes_moves_the_coarser_mesh_onto_the_finer():
                         'wing', unit='in')
     project = hertzforge.Project('p')
     project.add('Wing', mesh.assemble(fine, coarse, apart=True))
-    (reading,) = run(project, 'project.align_meshes', geometry='Wing', keep=True)
-    found = {row['label']: row['value'] for row in reading['rows']}
-    assert found['Nodes moved'] == 16
-    assert 0 < found['Farthest move'] <= 0.5 / 3 * 25.4
+    before = project['Wing'].node_xyz.copy()
+    run(project, 'project.align_meshes', geometry='Wing', keep=True)
+    moves = np.linalg.norm(project['Wing'].node_xyz - before, axis=1)
+    assert (moves > 0).sum() == 16
+    assert 0 < moves.max() <= 0.5 / 3 * 0.0254
 
 
 def test_tie_picks_its_patch_by_clicking_and_lists_the_groups(validate):
@@ -302,9 +303,9 @@ def test_tie_to_is_a_group_and_says_so():
     with pytest.raises(ProtocolError, match='not both'):
         run(project, 'project.tie_elements', geometry='G', elements='9', to='low', second='5',
             keep=True)
-    (reading,) = run(project, 'project.tie_elements', geometry='G', elements='9', to='low',
-                     keep=True)
-    assert {row['label']: row['value'] for row in reading['rows']}['Links added'] == 8
+    links = len(project['G'].elem_id)
+    run(project, 'project.tie_elements', geometry='G', elements='9', to='low', keep=True)
+    assert len(project['G'].elem_id) == links + 8, 'eight links added'
 
 
 def test_tie_finds_every_elements_faces_without_a_call_per_element(monkeypatch):
@@ -359,7 +360,7 @@ def test_align_on_an_undefined_geometry_takes_its_reach_in_the_files_numbers():
     (reading, _view) = run(project, 'project.align_meshes', geometry='Raw', reach=5.0)
     found = {row['label']: row for row in reading['rows']}
     assert found['Moves']['value'] > 0, 'a reach of 5, not of 0.005'
-    (reading,) = run(project, 'project.align_meshes', geometry='Raw', reach=5.0, keep=True)
-    found = {row['label']: row for row in reading['rows']}
-    assert found['Farthest move']['unit'] is None
-    assert 0.5 < found['Farthest move']['value'] < 5.0
+    before = project['Raw'].node_xyz.copy()
+    (view,) = run(project, 'project.align_meshes', geometry='Raw', reach=5.0, keep=True)
+    assert view['unit'] == 'undefined'
+    assert 0.5 < np.linalg.norm(project['Raw'].node_xyz - before, axis=1).max() < 5.0

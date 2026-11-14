@@ -184,18 +184,12 @@ def merge_coincident_nodes(project: Any, params: dict[str, Any]) -> list[dict]:
     out = _left_out(params, places)
     exclude = [node for spot in every if spot[0] in out for node in spot]
     if params['keep']:
-        before = len(geometry.node_id)
         try:
             project.merge_coincident_nodes(name, tolerance=tolerance, groups=groups,
                                            exclude=exclude or None)
         except ValueError as error:
             raise refused(str(error)) from None
-        after = len(geometry.node_id)
-        return [v.reading(f'Coincident nodes of {name}', [
-            v.row('Nodes before', float(before), '', 'info'),
-            v.row('Nodes merged away', float(before - after), '', 'info'),
-            v.row('Places left out', float(len(out)), '', 'info'),
-            v.row('Nodes now', float(after), '', 'info')])]
+        return view_geometry(project, params)
     rows = [v.row('Places', float(len(places)), '', 'info'),
             v.row('Left out', _id_text(out) or 'none', None, 'info')]
     fold = geometry.merge_folds(tolerance, groups, exclude or None)
@@ -361,13 +355,10 @@ def tie_elements(project: Any, params: dict[str, Any]) -> list[dict]:
             raise refused(f'the geometry has no element group {to!r}; a second patch of '
                           'elements has its own field')
     try:
-        found = project.tie_elements(name, patch, target)
+        project.tie_elements(name, patch, target)
     except (ValueError, KeyError) as error:
         raise refused(str(error).strip("'")) from None
-    return [v.reading(f'Tie on {name}', [
-        v.row('Links added', float(found['links']), '', 'info'),
-        v.row('Nodes already shared', float(found['shared']), '', 'info'),
-        v.row('Links in group', str(found['group']), None, 'info')])]
+    return view_geometry(project, params)
 
 
 def align_meshes(project: Any, params: dict[str, Any]) -> list[dict]:
@@ -385,15 +376,10 @@ def align_meshes(project: Any, params: dict[str, Any]) -> list[dict]:
     exclude = sorted(out) or None
     if params['keep']:
         try:
-            found = project.align_meshes(name, reach, groups, exclude)
+            project.align_meshes(name, reach, groups, exclude)
         except ValueError as error:
             raise refused(str(error)) from None
-        farthest = (v.row('Farthest move', float(found['farthest']) * 1000.0, 'mm', 'info')
-                    if geometry.units_defined
-                    else v.row('Farthest move', float(found['farthest']), None, 'info'))
-        return [v.reading(f'Aligned meshes of {name}', [
-            v.row('Nodes moved', float(found['moved']), '', 'info'),
-            v.row('Moves left out', float(len(out)), '', 'info'), farthest])]
+        return view_geometry(project, params)
     moves = [move for move in every if int(move[0]) not in out]
     rows = [v.row('Moves', float(len(every)), '', 'info'),
             v.row('Left out', _id_text(out) or 'none', None, 'info')]

@@ -136,11 +136,12 @@ def test_mesh_sizes_are_typed_in_the_display_system():
     (_block, kept) = answers(
         add_block(width_x=1.0, width_y=1.0, width_z=1.0),
         ('op.run', {'op': 'project.mesh_solids', 'params': {'geometry': 'Part', 'size': 0.5}}))
-    # half-inch bricks in an inch block: eight, so the size was taken as inches
-    said = rows(kept)
-    assert said['Bricks']['value'] == 8.0
-    assert said['Shortest edge']['unit'] == 'in'
-    assert said['Shortest edge']['value'] == pytest.approx(0.5)
+    # half-inch bricks in an inch block: two along each side, so the size was taken as inches
+    (view,) = kept['result']['views']
+    nodes = np.asarray(view['nodes'], dtype=float)
+    assert view['unit'] == 'in'
+    for axis in range(3):
+        assert np.unique(nodes[:, axis]) == pytest.approx([-0.5, 0.0, 0.5])
 
 
 def test_piece_sizes_and_what_a_fold_says_are_in_the_display_system():

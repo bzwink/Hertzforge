@@ -174,10 +174,9 @@ def test_a_field_is_set_and_an_inconsistent_edit_is_put_back(project, validate):
 
 
 def test_deleting_keeps_measured_nodes_and_the_last_system(project, validate):
-    view, table, reading = run(project, 'project.delete_entities', kind='nodes', ids='102')
-    wire_views([view, table, reading], validate)
-    counts = {row['label']: row['value'] for row in reading['rows']}
-    assert counts == {'Nodes': 1.0, 'Elements': 2.0}
+    view, table = run(project, 'project.delete_entities', kind='nodes', ids='102')
+    wire_views([view, table], validate)
+    assert table['title'].endswith('removed 1 node, 2 elements'), 'said once, in the title'
     assert len(table['rows']) == 168
     with pytest.raises(ProtocolError, match='measured at node 101'):
         run(project, 'project.delete_entities', kind='nodes', ids='101')
@@ -185,10 +184,9 @@ def test_deleting_keeps_measured_nodes_and_the_last_system(project, validate):
         run(project, 'project.delete_entities', kind='coordinate_systems', ids='1')
     with pytest.raises(ProtocolError, match='no element 9999'):
         run(project, 'project.delete_entities', kind='elements', ids='9999')
-    _view, table, reading = run(project, 'project.delete_entities', kind='elements',
-                                ids='3-12')
+    _view, table = run(project, 'project.delete_entities', kind='elements', ids='3-12')
     # the rest of the first row of quads: their own nodes go, the measured stay
-    assert {row['label']: row['value'] for row in reading['rows']}['Elements'] == 10.0
+    assert 'removed 10 elements' in table['title']
     assert {101, 104, 110, 113} <= set(project['Geometry'].node_id.tolist())
 
 
