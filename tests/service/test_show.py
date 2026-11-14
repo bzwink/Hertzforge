@@ -48,9 +48,14 @@ def test_one_object_shows_by_its_kind(plate, validate):
     assert [v['view'] for v in shown(plate, geometry, validate=validate)['views']] == ['shape3d']
     whole = shown(plate, frf, validate=validate)
     assert [v['view'] for v in whole['views']] == ['waterfall'] and whole['note'] == ''
+    # records picked keep the stage while 3D is chosen, and are curves when Flat is
+    # (Brandon, 2026-11-14)
     picked = shown(plate, frf, records={frf: [0, 1, 2, 5]}, validate=validate)
-    assert [v['view'] for v in picked['views']] == ['spectrum']
-    assert len(picked['views'][0]['series']) == 4, 'the records picked, as curves'
+    assert [v['view'] for v in picked['views']] == ['waterfall']
+    assert len(picked['views'][0]['records']) == 4, 'the records picked, on the stage'
+    flat = shown(plate, frf, records={frf: [0, 1, 2, 5]}, prefs={'flat': True}, validate=validate)
+    assert [v['view'] for v in flat['views']] == ['spectrum']
+    assert len(flat['views'][0]['series']) == 4, 'the records picked, as curves'
     assert shown(plate, table, validate=validate)['views'][0]['view'] == 'table'
 
 

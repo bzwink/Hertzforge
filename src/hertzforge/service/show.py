@@ -353,9 +353,18 @@ def _alone(project: Any, name: str, picks: list[int],
     if _is_data(obj):
         prefs = {**PREFS, **(prefs or {})}
         component = prefs['component']
-        if picks:
+        if picks and prefs['flat']:
             return _run(project, 'project.plot', data=name, records=_runs(picks),
                         component=component), []
+        if picks:
+            from .waterfalls import waterfall_view
+
+            # the sub-items picked on the stage, as the whole object is: 3D is the choice
+            # the bar shows, picks or none (Brandon, 2026-11-14)
+            view = waterfall_view(name, obj, component=component,
+                                  records=sorted(set(picks)))
+            _faced([view], obj)
+            return [view], []
         if prefs['flat']:
             # the flat plot draws every record
             return _run(project, 'project.plot', data=name,

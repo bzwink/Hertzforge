@@ -81,7 +81,7 @@ def axes(data: Any, first: int, component: str,
 
 def waterfall_view(title: str, data: Any, page: int = 1,
                    component: str = 'magnitude',
-                   quantity: str = '') -> dict[str, Any]:
+                   quantity: str = '', records: list[int] | None = None) -> dict[str, Any]:
     """`data`'s records at their own depths, as one `waterfall` view.
 
     `page` is 1-based and lands on the last page when past it. A time
@@ -91,8 +91,8 @@ def waterfall_view(title: str, data: Any, page: int = 1,
     phase reads on a linear axis. One quantity is drawn, the
     group `quantity` names (`quantity_key`) or else the largest; when the
     object has more than one, the view lists them as `quantities` for the
-    shell to offer. An object with
-    no records is refused."""
+    shell to offer. `records` draws those alone (the sub-items picked in
+    the tree). An object with no records is refused."""
     import hertzforge as hz
     from hertzforge.drawing.viz.waterfall import (
         drawn_span,
@@ -101,7 +101,7 @@ def waterfall_view(title: str, data: Any, page: int = 1,
         waterfall_groups,
     )
 
-    arrays = waterfall_arrays(data, unit_system=hz.SI, exponents=False,
+    arrays = waterfall_arrays(data, records, unit_system=hz.SI, exponents=False,
                               component=component, page=int(page) - 1,
                               quantity=_group(data, quantity))
     if not arrays['drawn']:
