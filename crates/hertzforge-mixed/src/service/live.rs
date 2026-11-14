@@ -991,6 +991,9 @@ impl MixedService {
     fn flush_law_records(&mut self) {
         let Some(rt) = self.rt.as_mut() else { return };
         for r in rt.step.law_log.drain(..).chain(rt.floor_log.drain(..)) {
+            if let Some(kept) = self.law_kept.as_mut() {
+                kept.push(r);
+            }
             if self.capture_dir.is_some() {
                 r.write_to(&mut self.law_bytes);
             }
