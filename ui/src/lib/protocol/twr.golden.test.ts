@@ -135,7 +135,7 @@ describe('TWR goldens through the shell', () => {
 		d.limits.drive_vpk_ceiling = 0.5;
 		const mine = toTwrConfig(d, null);
 		expect(Object.keys(mine).sort()).toEqual(Object.keys(config).sort());
-		for (const k of ['reference', 'prep', 'pads', 'acquisition', 'identification', 'inverse', 'correction', 'control', 'schedule', 'adaptation', 'limits', 'feasibility', 'capture'] as const) {
+		for (const k of ['reference', 'prep', 'pads', 'acquisition', 'identification', 'inverse', 'correction', 'control', 'schedule', 'adaptation', 'limits', 'feasibility', 'record'] as const) {
 			expect(Object.keys(mine[k] ?? {}).sort()).toEqual(Object.keys(config[k] ?? {}).sort());
 		}
 	});

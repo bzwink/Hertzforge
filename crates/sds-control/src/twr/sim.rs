@@ -527,4 +527,25 @@ impl TwrEngine for SimulatedEngine {
     fn take_log(&mut self) -> Vec<(&'static str, String)> {
         std::mem::take(&mut self.log)
     }
+
+    fn take_station_facts(&mut self) -> Option<crate::shock::record::StationFacts> {
+        Some(crate::shock::record::StationFacts {
+            source: "SIM",
+            station: serde_json::json!({"kind": "sim", "class": "sim", "label": "simulated engine",
+                                        "backend": "none", "devices": [], "clock": "shared"}),
+            sim: Some(
+                serde_json::json!({"model": "simulated_engine", "parameters": {},
+                                         "seed": null}),
+            ),
+            build: serde_json::json!({"version": env!("CARGO_PKG_VERSION"), "commit": null,
+                                      "dirty": null}),
+            output_latency: serde_json::json!({"frames": null, "how": "unknown"}),
+            links: None,
+        })
+    }
+
+    fn full_level_target(&self) -> Option<Vec<f64>> {
+        let p = self.prepared.as_ref()?;
+        Some(p.target.clone())
+    }
 }

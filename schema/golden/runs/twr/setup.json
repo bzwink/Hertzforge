@@ -1,0 +1,213 @@
+{
+  "config": {
+    "title": "Golden TWR",
+    "operator": "Operator",
+    "article": "Bracket",
+    "notes": "the golden run folder",
+    "specification": {
+      "document": "Example procedure",
+      "clause": "4.2"
+    },
+    "reference": {
+      "sha256": "8a8d4bd0c6346d73722c53cd17672c1c53a6a05ec1d3e54c3bfae104e88e8179"
+    },
+    "pads": {
+      "pre": 32,
+      "post": 64
+    },
+    "identification": {
+      "drive_vrms": 0.1,
+      "duration_s": 0.5,
+      "nfft": 256,
+      "band_hz": [
+        20,
+        800
+      ],
+      "review": false
+    },
+    "schedule": {
+      "mode": "auto",
+      "levels_db": [
+        -6,
+        0
+      ],
+      "gate_pct": 5.5
+    },
+    "run": {
+      "schedule": "once"
+    },
+    "limits": {
+      "drive_vpk_ceiling": 5
+    }
+  },
+  "resolved": {
+    "reference": {
+      "name": "field",
+      "sha256": "8a8d4bd0c6346d73722c53cd17672c1c53a6a05ec1d3e54c3bfae104e88e8179",
+      "format": "text",
+      "fs_hz": 2048,
+      "samples": 160,
+      "duration_s": 0.078125,
+      "units": "g",
+      "prep": {
+        "auto_resample": true,
+        "detrend": "mean",
+        "highpass_hz": 5,
+        "scale": 1,
+        "taper_frac": 0.02
+      },
+      "section": null,
+      "pads": {
+        "pre": 32,
+        "post": 64
+      }
+    },
+    "record": {
+      "fs_hz": 2048,
+      "record_len": 256,
+      "section_start": 32,
+      "section_len": 160,
+      "section_s": 0.078125
+    },
+    "identification": {
+      "excitation": "random",
+      "drive_vrms": 0.1,
+      "duration_s": 0.5,
+      "nfft": 256,
+      "band_hz": [
+        20,
+        800
+      ],
+      "min_mean_coherence": 0.8,
+      "review": false
+    },
+    "iteration": {
+      "inverse": {
+        "tikhonov_floor": 0.05,
+        "coherence_floor": 0.9
+      },
+      "correction": {
+        "band_hz": [
+          20,
+          800
+        ],
+        "ref_floor_db": 50,
+        "min_band_energy": 0.9
+      },
+      "during_playback": false
+    },
+    "control": {
+      "law": {
+        "id": "twr_correct",
+        "params": {}
+      },
+      "law_budget": 0.25,
+      "law_misses": 3,
+      "max_peak_rise_db": 10,
+      "max_bin_rise_db": 10,
+      "first_drive_ratio": 2,
+      "alignment_frames": 1,
+      "controller": {
+        "guards": {
+          "budget_fraction": 0.25,
+          "max_misses": 3,
+          "max_pulses": 100
+        },
+        "max_peak_rise_db": 10.0,
+        "max_bin_rise_db": 10.0,
+        "first_drive_ratio": 2.0,
+        "alignment_frames": 1.0,
+        "rest_taper": true
+      }
+    },
+    "schedule": {
+      "mode": "auto",
+      "levels_db": [
+        -6,
+        0
+      ],
+      "gate_pct": 5.5,
+      "max_iterations": 8,
+      "on_gate_fail": "abort",
+      "run": {
+        "schedule": "once"
+      },
+      "plays_target": 1
+    },
+    "limits": {
+      "drive_vpk_ceiling": 5,
+      "drive_clip_vpk": null,
+      "drive_vrms_limit": null,
+      "response_rms_limit": null,
+      "envelope_alarm_frac": 0.25,
+      "envelope_abort_frac": 0.5,
+      "envelope_debounce_samples": 8,
+      "divergence_plays": 3,
+      "divergence_rise_frac": 0.1,
+      "feasibility": {
+        "peak_accel": null,
+        "peak_velocity_ips": null,
+        "disp_pkpk_in": null,
+        "kinematics_hp_hz": 5
+      }
+    },
+    "acquisition": {
+      "requested_fs_hz": 2048,
+      "fs_hz": 2048,
+      "record_len": 256
+    },
+    "control_channel": 1,
+    "drive_channel": 3
+  },
+  "derived": {
+    "grid": {
+      "fs_hz": 2048,
+      "record_len": 256,
+      "df_hz": 8,
+      "record_s": 0.125,
+      "section_start": 32,
+      "section_len": 160,
+      "actual": false
+    },
+    "section": {
+      "peak": 0.551707,
+      "rms": 0.138322,
+      "duration_s": 0.078125
+    },
+    "kinematics": {
+      "peak_accel": 0.551707,
+      "peak_velocity_ips": 0.216689,
+      "disp_pkpk_in": 0.0017579,
+      "kinematics_hp_hz": 5
+    },
+    "coverage": {
+      "band_hz": [
+        20,
+        800
+      ],
+      "ref_floor_db": 50,
+      "fraction": 0.997308,
+      "error_floor_pct": 5.189
+    },
+    "feasibility": {
+      "verdict": "not_evaluated",
+      "message": "No kinematic ceiling is set, so the section was not checked against one.",
+      "checks": []
+    },
+    "reference": {
+      "sha256": "8a8d4bd0c6346d73722c53cd17672c1c53a6a05ec1d3e54c3bfae104e88e8179",
+      "name": "field",
+      "fs_hz": 2048,
+      "units": "g",
+      "resampled": false
+    },
+    "call_budget_s": 1,
+    "plays_target": 1,
+    "identification_s": 0.5
+  },
+  "feasibility": {
+    "inputs": null,
+    "verdict": "not_evaluated",
+    "message": "No kinematic ceiling is set, so the section was not checked against one."
+  }
+}

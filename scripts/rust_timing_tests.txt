@@ -176,6 +176,14 @@ sds-control  test:classical_shock_record  a_data_folder_that_cannot_be_written_r
 sds-control  test:classical_shock_record  shock_record_streams_false_writes_the_record_without_streams
 sds-control  test:classical_shock_golden_run  todays_code_writes_the_golden_classical_shock_run_folder
 sds-control  test:classical_shock_golden_run  the_golden_classical_shock_run_repeats_exactly
+sds-control  test:twr_record  a_writer_stalled_on_every_write_leaves_the_twr_plays_and_the_outcome_unchanged
+sds-control  test:twr_record  a_twr_run_leaves_a_complete_self_describing_folder
+sds-control  test:twr_record  a_data_folder_that_cannot_be_written_refuses_the_twr_arm
+sds-control  test:twr_record  twr_record_streams_false_writes_the_record_without_streams
+sds-control  test:twr_record  a_twr_play_cut_by_a_protection_is_recorded_as_far_as_it_went
+sds-control  test:twr_record  a_twr_play_a_stop_cuts_short_is_recorded_as_cancelled
+sds-control  test:twr_golden_run  todays_code_writes_the_golden_twr_run_folder
+sds-control  test:twr_golden_run  the_golden_twr_run_repeats_exactly
 sds-control  lib  record::tests::a_tap_never_waits_for_a_stalled_writer_and_keeps_the_gap_in_place
 sds-control  lib  record::tests::crossing_the_free_space_floor_stops_the_stream_and_tells_the_run
 

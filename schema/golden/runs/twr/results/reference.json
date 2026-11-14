@@ -1,0 +1,38 @@
+{
+  "name": "field",
+  "kind": "waveform",
+  "abscissa": {
+    "kind": "time",
+    "unit": "s",
+    "array": "time"
+  },
+  "channels": {
+    "responses": [
+      1
+    ]
+  },
+  "sha256": "8a8d4bd0c6346d73722c53cd17672c1c53a6a05ec1d3e54c3bfae104e88e8179",
+  "format": "text",
+  "fs_hz": 2048,
+  "description": "the reference as imported, at its own rate, before it was prepared",
+  "arrays": [
+    {
+      "name": "time",
+      "dtype": "f8",
+      "shape": [
+        160
+      ],
+      "unit": "s",
+      "offset": 0
+    },
+    {
+      "name": "values",
+      "dtype": "f8",
+      "shape": [
+        160
+      ],
+      "unit": "g",
+      "offset": 1280
+    }
+  ]
+}

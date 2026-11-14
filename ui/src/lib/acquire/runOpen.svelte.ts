@@ -26,6 +26,8 @@ export function workspaceForRun(test: string): Workspace {
 	if (test === 'random') return 'random';
 	if (test === 'sine') return 'sine';
 	if (test === 'classical_shock') return 'shock';
+	// A TWR run's plays against the target it was controlled to: Transient Analysis.
+	if (test === 'twr') return 'transient';
 	return 'signals';
 }
 

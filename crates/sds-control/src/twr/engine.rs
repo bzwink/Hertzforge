@@ -19,6 +19,7 @@ use crate::protocol::{num, ErrorCode, MethodError};
 use crate::pulse::observe::{Observed, Watch};
 use crate::pulse::rails::{Progress, Signals};
 use crate::shock::config::LawFacts;
+use crate::shock::record::{IdentRecord, ShotRecording, StationFacts};
 use crate::shock::view::sig;
 use crate::station::{self, class_name, NiScanner, StationPlan};
 use hertzforge_channel_table::{ChannelRole, ChannelTable};
@@ -43,13 +44,19 @@ pub struct ArmPlan {
     pub scanner: Arc<dyn NiScanner>,
     /// The service's local data directory: the hardware lock lives here.
     pub data_root: PathBuf,
-    /// Where the run's records are kept (`None`: the controller's local default).
-    pub capture_root: Option<PathBuf>,
     pub bind: String,
     /// The run's law, resolved by the service from the catalog.
     pub law: Result<Arc<dyn TwrLawFactory>, MethodError>,
     /// The operator's acknowledgement to arm past a feasibility exceedance.
     pub ack: Option<String>,
+    /// The devices of the last scan, for the record's models and serial numbers.
+    pub devices: Vec<hertzforge_hal::DiscoveredDevice>,
+    /// Whether the record keeps the streams, and how many seconds of samples
+    /// their buffers hold before blocks are dropped.
+    pub streams: bool,
+    pub stream_buffer_s: f64,
+    /// The station frame, set by the station wrapper after every read.
+    pub station_frame: Arc<AtomicU64>,
 }
 
 /// An armed station's facts.
@@ -185,6 +192,37 @@ pub trait TwrEngine: Send {
     fn frames_clocked(&self) -> u64;
     /// Log lines since the last call, driver warnings among them.
     fn take_log(&mut self) -> Vec<(&'static str, String)>;
+    /// Let the station go after an arm the run refused (its record could not be
+    /// written): nothing has been driven.
+    fn release(&mut self) {}
+    /// What the run's record says of the station armed, and its streams' links;
+    /// taken once, after an arm.
+    fn take_station_facts(&mut self) -> Option<StationFacts> {
+        None
+    }
+    /// The station's starts since the run armed: each play, the identification's
+    /// among them, is one, so after a play the count less one is its shot.
+    fn shots(&self) -> u64 {
+        0
+    }
+    /// The identification as the record keeps it, once done.
+    fn ident_record(&self) -> Option<IdentRecord> {
+        None
+    }
+    /// The drive-to-response lag every play is aligned at, frames, and whether it
+    /// was measured or derived.
+    fn lag(&self) -> Option<(f64, &'static str)> {
+        None
+    }
+    /// The target at full level on the record's samples, once armed.
+    fn full_level_target(&self) -> Option<Vec<f64>> {
+        None
+    }
+    /// The law's call records since the last take, oldest first; taken between
+    /// plays.
+    fn take_law_calls(&mut self) -> Vec<hertzforge_twr::TwrCallRecord> {
+        Vec::new()
+    }
 }
 
 /// What an engine is built with: the run's signals and its progress cell, and the
@@ -252,8 +290,10 @@ pub struct ServiceEngine {
     units: String,
     log: Vec<(&'static str, String)>,
     log_seen: usize,
-    capture_root: Option<PathBuf>,
-    capturing: bool,
+    /// What the record says of the station armed, until the run takes it.
+    station_facts: Option<StationFacts>,
+    /// The station's starts, counted by the station wrapper.
+    starts: Arc<AtomicU64>,
     #[cfg(test)]
     without_law: bool,
     /// A test's wrapper around the station's backend, applied as the run arms (a
@@ -276,8 +316,8 @@ impl ServiceEngine {
             units: "g".into(),
             log: Vec::new(),
             log_seen: 0,
-            capture_root: None,
-            capturing: false,
+            station_facts: None,
+            starts: Arc::new(AtomicU64::new(0)),
             #[cfg(test)]
             without_law: false,
             #[cfg(test)]
@@ -447,44 +487,6 @@ impl ServiceEngine {
             abort_frac: l.envelope_abort_frac,
             spectra,
         })
-    }
-
-    fn start_capture_if_asked(&mut self) {
-        if self.capturing {
-            return;
-        }
-        let auto = self
-            .svc
-            .as_ref()
-            .is_some_and(|s| s.config().capture.auto_start);
-        if !auto {
-            return;
-        }
-        let root = self
-            .capture_root
-            .clone()
-            .unwrap_or_else(hertzforge_capture::default_data_root);
-        if let Some(svc) = self.svc.as_mut() {
-            match svc.start_capture(&root) {
-                Ok(dir) => {
-                    self.capturing = true;
-                    self.log
-                        .push(("note", format!("recording to {}", dir.display())));
-                }
-                Err(e) => self
-                    .log
-                    .push(("note", format!("the recording did not start: {e}"))),
-            }
-        }
-    }
-
-    fn finish_capture(&mut self) {
-        if self.capturing {
-            if let Some(svc) = self.svc.as_mut() {
-                let _ = svc.stop_capture();
-            }
-            self.capturing = false;
-        }
     }
 }
 
@@ -726,13 +728,59 @@ impl TwrEngine for ServiceEngine {
         if let Some(wrap) = self.wrap_station.as_ref() {
             backend = wrap(backend);
         }
+        // The streams are taken where the station's blocks pass: every input as
+        // read and the drive as the device accepted it, a shot per start (the
+        // identification, then each play). Their buffers are made here, before
+        // anything runs. The wrapper only watches: every call reaches the station
+        // unchanged.
+        let caps = backend.caps();
+        let asked = plan.cfg.shape.fs_for(plan.stored.fs_hz);
+        let buffers = if plan.streams {
+            crate::random::record::tap_buffers(asked, plan.stream_buffer_s)
+        } else {
+            1
+        };
+        let (inputs_tap, inputs_link) = crate::record::tap::pair(
+            crate::random::record::input_rows(&plan.table).len(),
+            crate::random::record::TAP_BLOCK_FRAMES,
+            buffers,
+        );
+        let (drives_tap, drives_link) = crate::record::tap::pair(
+            crate::random::record::drive_rows(&plan.table).len(),
+            crate::random::record::TAP_BLOCK_FRAMES,
+            buffers,
+        );
+        self.starts = Arc::new(AtomicU64::new(0));
+        let backend = ShotRecording::wrap_counted(
+            backend,
+            inputs_tap,
+            drives_tap,
+            plan.station_frame.clone(),
+            self.starts.clone(),
+        );
+        self.station_facts = Some(StationFacts {
+            source: station::source_of(class),
+            station: crate::random::record::station_member(
+                matches!(&plan.station, StationPlan::Sim { .. }),
+                class,
+                &provenance,
+                &plan.devices,
+                &caps,
+            ),
+            sim: crate::random::record::sim_value(&plan.station, class),
+            build: crate::random::record::build_value(provenance.core_build),
+            output_latency: match &caps.output_buffer {
+                Some(b) => json!({"frames": b.min_lookahead_frames, "how": "declared"}),
+                None => json!({"frames": null, "how": "unknown"}),
+            },
+            links: Some((inputs_link, drives_link)),
+        });
         // THE RATE THE RUN ASKED, the one its configuration derived the record at
         // (`acquisition.fs_hz`, or the reference's own). The player asks the station
         // for it and the core prepares the record at it. The station's caps state
         // the rate it was BUILT at, which on NI is the chassis's 51 200 Hz whatever
         // the run asked: requested from the caps, a run asked at 12 800 Hz ran at
         // 51 200 Hz (bench T0, 2026-11-08).
-        let asked = plan.cfg.shape.fs_for(plan.stored.fs_hz);
         let player =
             BackendReferencePlayer::new(Observed::new(backend, watch), plan.table.clone(), class)
                 .map_err(arm_refused)?
@@ -763,7 +811,6 @@ impl TwrEngine for ServiceEngine {
         let grid = svc.grid().clone();
         let adopted = svc.status().actual_fs_hz.unwrap_or(grid.fs_hz);
         self.cfg = Some(plan.cfg.clone());
-        self.capture_root = plan.capture_root.clone();
         self.svc = Some(svc);
         self.forward_log();
         Ok(ArmOutcome::Armed(Box::new(Armed {
@@ -865,7 +912,6 @@ impl TwrEngine for ServiceEngine {
         if let Some(end) = self.ended() {
             return Ok(Proceeded::Ended(end));
         }
-        self.start_capture_if_asked();
         let level = self.position().level_db;
         Ok(Proceeded::Ready(self.predicted_vpk_at(level).map(|vpk| {
             Prediction {
@@ -878,7 +924,6 @@ impl TwrEngine for ServiceEngine {
 
     fn play(&mut self) -> Result<Played, MethodError> {
         let rows_before = self.svc()?.plays().len();
-        self.start_capture_if_asked();
         self.ctx.progress.start(0);
         let r = self.svc()?.advance();
         self.ctx.progress.end();
@@ -914,9 +959,6 @@ impl TwrEngine for ServiceEngine {
             played.row = Some(row);
         }
         played.end = self.ended();
-        if played.end.is_some() {
-            self.finish_capture();
-        }
         Ok(played)
     }
 
@@ -1002,7 +1044,6 @@ impl TwrEngine for ServiceEngine {
         if let Some(svc) = self.svc.as_mut() {
             let _ = svc.stop();
         }
-        self.finish_capture();
         self.forward_log();
     }
 
@@ -1010,7 +1051,6 @@ impl TwrEngine for ServiceEngine {
         if let Some(svc) = self.svc.as_mut() {
             svc.abort(reason);
         }
-        self.finish_capture();
         self.forward_log();
     }
 
@@ -1122,6 +1162,87 @@ impl TwrEngine for ServiceEngine {
     fn take_log(&mut self) -> Vec<(&'static str, String)> {
         std::mem::take(&mut self.log)
     }
+
+    fn release(&mut self) {
+        if let Some(mut svc) = self.svc.take() {
+            let _ = svc.stop();
+        }
+    }
+
+    fn take_station_facts(&mut self) -> Option<StationFacts> {
+        self.station_facts.take()
+    }
+
+    fn shots(&self) -> u64 {
+        self.starts.load(std::sync::atomic::Ordering::Relaxed)
+    }
+
+    fn ident_record(&self) -> Option<IdentRecord> {
+        let svc = self.svc.as_ref()?;
+        let cfg = svc.config();
+        let (lo, hi) = (cfg.sysid.f_lo_hz, cfg.sysid.f_hi_hz);
+        let mag = svc.frf_mag();
+        let phase = svc.frf_phase_deg();
+        let coh = svc.coherence();
+        let mask = svc.trust_mask();
+        let grid_df = svc.grid().df();
+        let bins: Vec<usize> = (1..mag.len().min(phase.len()))
+            .filter(|&k| (lo..=hi).contains(&mag[k].0))
+            .collect();
+        let first = *bins.first()?;
+        let df = if mag.len() > 1 {
+            mag[1].0 - mag[0].0
+        } else {
+            0.0
+        };
+        Some(IdentRecord {
+            first_hz: mag[first].0,
+            df_hz: df,
+            h: bins
+                .iter()
+                .map(|&k| {
+                    let (g, p) = (mag[k].1, phase[k].1.to_radians());
+                    (g * p.cos(), g * p.sin())
+                })
+                .collect(),
+            coherence: bins
+                .iter()
+                .map(|&k| coh.get(k).map_or(0.0, |c| c.1))
+                .collect(),
+            trusted: bins
+                .iter()
+                .map(|&k| {
+                    let on_grid = (mag[k].0 / grid_df.max(f64::MIN_POSITIVE)).round() as usize;
+                    mask.get(on_grid).is_some_and(|m| m.1 > 0.5)
+                })
+                .collect(),
+        })
+    }
+
+    fn lag(&self) -> Option<(f64, &'static str)> {
+        let svc = self.svc.as_ref()?;
+        let lag = svc.lag_frames()? as f64;
+        Some((
+            lag,
+            match svc.lag_provenance() {
+                Some(LagSource::Measured) => "measured",
+                _ => "derived",
+            },
+        ))
+    }
+
+    fn full_level_target(&self) -> Option<Vec<f64>> {
+        self.svc.as_ref()?;
+        let t = self.target_at(0.0);
+        (!t.is_empty()).then_some(t)
+    }
+
+    fn take_law_calls(&mut self) -> Vec<hertzforge_twr::TwrCallRecord> {
+        self.svc
+            .as_mut()
+            .map(|s| s.take_law_records())
+            .unwrap_or_default()
+    }
 }
 
 #[cfg(test)]
@@ -1191,11 +1312,14 @@ mod tests {
             scanner: Arc::new(FixedScanner(Err(
                 hertzforge_station::StationBuildError::NoNiDevices,
             ))),
-            data_root: root.clone(),
-            capture_root: Some(root),
+            data_root: root,
             bind: "ws://127.0.0.1:0/".into(),
             law: Err(MethodError::internal("no law in this test")),
             ack: None,
+            devices: Vec::new(),
+            streams: false,
+            stream_buffer_s: 1.0,
+            station_frame: Arc::new(AtomicU64::new(0)),
         }
     }
 

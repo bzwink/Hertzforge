@@ -22,7 +22,7 @@ import type {
 	TwrRun
 } from '$lib/protocol/twr';
 import { lawWireParams, type LawDraft } from '../law/lawForm';
-import type { FieldErrors } from '../setup';
+import { defaultRecord, type FieldErrors, type RecordDraft } from '../setup';
 
 // ---------------------------------------------------------------------------------------------
 // The draft
@@ -95,7 +95,8 @@ export interface TwrDraft {
 		disp_pkpk_in: number | null;
 		kinematics_hp_hz: number;
 	};
-	capture: { auto_start: boolean; run_name: string };
+	/** The run's record: the operator's words and whether the folder keeps the time histories (Random's). */
+	record: RecordDraft;
 	metadata: { key: string; label: string; value: string }[];
 }
 
@@ -153,7 +154,7 @@ export function defaultTwrSetup(): TwrDraft {
 			divergence_rise_frac: 0.1
 		},
 		feasibility: { peak_accel: null, peak_velocity_ips: null, disp_pkpk_in: null, kinematics_hp_hz: 5 },
-		capture: { auto_start: false, run_name: 'twr_run' },
+		record: defaultRecord(),
 		metadata: [{ key: 'run_number', label: 'Run Number', value: '' }]
 	};
 }
@@ -184,7 +185,9 @@ export function mergeTwrSetup(saved: Partial<TwrDraft> | null): TwrDraft {
 	out.adaptation = { ...base.adaptation, ...(saved.adaptation ?? {}) };
 	out.limits = { ...base.limits, ...(saved.limits ?? {}) };
 	out.feasibility = { ...base.feasibility, ...(saved.feasibility ?? {}) };
-	out.capture = { ...base.capture, ...(saved.capture ?? {}) };
+	// A draft saved before the run's record took the capture's place has a capture and no record.
+	delete (out as Partial<TwrDraft> & { capture?: unknown }).capture;
+	out.record = { ...base.record, ...(saved.record ?? {}) };
 	if (!Array.isArray(out.metadata)) out.metadata = base.metadata;
 	return out;
 }
@@ -221,7 +224,11 @@ export function toTwrConfig(d: TwrDraft, law: LawEntry | null): TwrConfig {
 		adaptation: { ...d.adaptation },
 		limits: { ...d.limits },
 		feasibility: { ...d.feasibility },
-		capture: { ...d.capture },
+		operator: d.record.operator.trim(),
+		article: d.record.article.trim(),
+		notes: d.record.notes.trim(),
+		specification: d.record.document.trim() || d.record.clause.trim() ? { document: d.record.document.trim(), clause: d.record.clause.trim() } : null,
+		record: { streams: d.record.streams },
 		metadata: d.metadata.map((m) => ({ ...m }))
 	};
 }
@@ -264,7 +271,14 @@ export function fromTwrConfig(c: TwrConfig, facts: TwrReferenceFacts | null = nu
 		adaptation: { ...base.adaptation, ...(c.adaptation ?? {}) },
 		limits: { ...base.limits, ...c.limits },
 		feasibility: { ...base.feasibility, ...(c.feasibility ?? {}) },
-		capture: { ...base.capture, ...(c.capture ?? {}) },
+		record: {
+			operator: c.operator ?? '',
+			article: c.article ?? '',
+			notes: c.notes ?? '',
+			document: c.specification?.document ?? '',
+			clause: c.specification?.clause ?? '',
+			streams: c.record?.streams ?? true
+		},
 		metadata: (c.metadata ?? []).map((m) => ({ ...m }))
 	};
 }
@@ -293,7 +307,7 @@ export function previewParams(d: TwrDraft): TwrReferencePreviewParams | null {
 // Where a finding belongs
 
 /** The setup's sections, in the screen's order. */
-export type TwrSetupSection = 'station' | 'reference' | 'identification' | 'control' | 'schedule' | 'limits' | 'capture';
+export type TwrSetupSection = 'station' | 'reference' | 'identification' | 'control' | 'schedule' | 'limits' | 'record';
 
 export const TWR_SECTIONS: { id: TwrSetupSection; label: string }[] = [
 	{ id: 'station', label: 'Station & Channels' },
@@ -302,7 +316,7 @@ export const TWR_SECTIONS: { id: TwrSetupSection; label: string }[] = [
 	{ id: 'control', label: 'Control' },
 	{ id: 'schedule', label: 'Schedule' },
 	{ id: 'limits', label: 'Limits' },
-	{ id: 'capture', label: 'Capture' }
+	{ id: 'record', label: 'Run Record' }
 ];
 
 /** Findings the service names by reason alone, by the editor's key. */
@@ -365,7 +379,7 @@ export function twrSectionOf(key: string): TwrSetupSection {
 	if (/^(law|control|inverse|correction)(\.|$)/.test(key)) return 'control';
 	if (/^(schedule|run|adaptation)(\.|$)/.test(key)) return 'schedule';
 	if (/^(limits|feasibility)(\.|$)/.test(key)) return 'limits';
-	if (/^(capture|metadata)(\.|$)/.test(key)) return 'capture';
+	if (/^(metadata|operator|article|notes|specification|record)(\.|$)/.test(key)) return 'record';
 	return 'reference';
 }
 
@@ -449,7 +463,7 @@ export function localErrors(d: TwrDraft): FieldErrors {
 	needOptional(out, 'feasibility.peak_velocity_ips', f.peak_velocity_ips);
 	needOptional(out, 'feasibility.disp_pkpk_in', f.disp_pkpk_in);
 	need(out, 'feasibility.kinematics_hp_hz', f.kinematics_hp_hz);
-	if (d.capture.auto_start && !d.capture.run_name.trim()) add(out, 'capture.run_name', 'Name the capture, or turn auto start off.');
+	if (d.record.clause.trim() && !d.record.document.trim()) add(out, 'specification.document', 'Name the document this clause is from.');
 	return out;
 }
 
