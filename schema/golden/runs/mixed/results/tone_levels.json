@@ -1,0 +1,132 @@
+{
+  "name": "tone_levels",
+  "kind": "mixed_tone_levels",
+  "abscissa": {
+    "kind": "time",
+    "unit": "s",
+    "array": "time"
+  },
+  "channels": {
+    "controls": [
+      1
+    ]
+  },
+  "description": "each tone's frequency, its target at the level in force, its tracked level (the control composite, peak), its error, its drive (peak), its tracked phase against its drive on each control channel, and whether it plays, as the run went (time from engage); a point is NaN where a record was not filled",
+  "parts": [
+    "t1"
+  ],
+  "records": {
+    "index": "record",
+    "points": "the points the record holds before its NaN fill"
+  },
+  "arrays": [
+    {
+      "name": "time",
+      "dtype": "f8",
+      "shape": [
+        32
+      ],
+      "unit": "s",
+      "offset": 0
+    },
+    {
+      "name": "level_db",
+      "dtype": "f8",
+      "shape": [
+        32
+      ],
+      "unit": "dB",
+      "offset": 256
+    },
+    {
+      "name": "rung",
+      "dtype": "f8",
+      "shape": [
+        32
+      ],
+      "unit": "",
+      "offset": 512
+    },
+    {
+      "name": "frequency",
+      "dtype": "f8",
+      "shape": [
+        1,
+        32
+      ],
+      "unit": "Hz",
+      "offset": 768
+    },
+    {
+      "name": "target",
+      "dtype": "f8",
+      "shape": [
+        1,
+        32
+      ],
+      "unit": "g",
+      "offset": 1024
+    },
+    {
+      "name": "measured",
+      "dtype": "f8",
+      "shape": [
+        1,
+        32
+      ],
+      "unit": "g",
+      "offset": 1280
+    },
+    {
+      "name": "error_db",
+      "dtype": "f8",
+      "shape": [
+        1,
+        32
+      ],
+      "unit": "dB",
+      "offset": 1536
+    },
+    {
+      "name": "drive",
+      "dtype": "f8",
+      "shape": [
+        1,
+        32
+      ],
+      "unit": "V",
+      "offset": 1792
+    },
+    {
+      "name": "on",
+      "dtype": "f8",
+      "shape": [
+        1,
+        32
+      ],
+      "unit": "",
+      "offset": 2048
+    },
+    {
+      "name": "alarm",
+      "dtype": "f8",
+      "shape": [
+        1,
+        32
+      ],
+      "unit": "",
+      "offset": 2304
+    },
+    {
+      "name": "phase",
+      "dtype": "f8",
+      "shape": [
+        1,
+        1,
+        32
+      ],
+      "unit": "deg",
+      "offset": 2560
+    }
+  ]
+}

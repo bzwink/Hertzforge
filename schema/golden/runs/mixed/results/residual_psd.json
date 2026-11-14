@@ -1,0 +1,52 @@
+{
+  "name": "residual_psd",
+  "kind": "psd",
+  "abscissa": {
+    "kind": "frequency",
+    "unit": "Hz",
+    "start": 96.0,
+    "step": 16.0
+  },
+  "channels": {
+    "responses": [
+      1
+    ]
+  },
+  "records": {
+    "index": "record",
+    "why": "level (the last chunk before a level change) or end (the last chunk with the background's loop)",
+    "level_db": "the level in force",
+    "frame": "the station frame when it was kept"
+  },
+  "description": "each control channel's spectrum with each tracked tone taken out (the residual, what the background and the bands are judged on), the composite, and the lines left out of the background's average (1)",
+  "arrays": [
+    {
+      "name": "values",
+      "dtype": "f8",
+      "shape": [
+        1,
+        26
+      ],
+      "unit": "g^2/Hz",
+      "offset": 0
+    },
+    {
+      "name": "composite",
+      "dtype": "f8",
+      "shape": [
+        26
+      ],
+      "unit": "g^2/Hz",
+      "offset": 208
+    },
+    {
+      "name": "excluded",
+      "dtype": "f8",
+      "shape": [
+        26
+      ],
+      "unit": "",
+      "offset": 416
+    }
+  ]
+}

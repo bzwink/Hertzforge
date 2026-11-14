@@ -115,6 +115,17 @@ def test_a_part_names_its_kind_and_a_tone_needs_its_schedule(validate):
     _refused(validate, no_limits, 'mixedConfig')
 
 
+def test_a_mixed_configuration_carries_every_field_and_takes_no_capture(validate):
+    config = _text('request_mixed_configure')['params']['config']
+    assert set(config) == {'title', 'parts', 'exclusion_hz', 'acquisition', 'schedule',
+                           'control', 'limits', 'feasibility', 'operator', 'article', 'notes',
+                           'specification', 'record', 'metadata'}
+    validate(config, 'mixedConfig')
+    state = _text('event_mixed_state')['data']
+    validate(state, 'mixedState')
+    assert set(state['record']) == {'folder', 'streams', 'problem'}
+
+
 def test_the_state_carries_one_row_per_part_in_the_parts_order():
     state = _text('event_mixed_state')['data']
     config = _text('request_mixed_configure')['params']['config']

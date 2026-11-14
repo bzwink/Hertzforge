@@ -259,6 +259,11 @@ fn running() -> MixedView {
     let mut v = configured("mixed-0002");
     v.grid.actual = true;
     v.clock = Some("shared");
+    v.record = Some(sds_control::random::view::RecordRef {
+        folder: "/home/operator/Hertzforge_Data/20261101-142233_mixed_mixed-0002".into(),
+        streams: true,
+        problem: None,
+    });
     view::apply_status(&mut v, &s);
     v.elapsed_s = Some(131.5);
     v.at_level_s = Some(36.25);

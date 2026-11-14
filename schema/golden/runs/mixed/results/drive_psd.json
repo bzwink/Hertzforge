@@ -1,0 +1,34 @@
+{
+  "name": "drive_psd",
+  "kind": "psd",
+  "abscissa": {
+    "kind": "frequency",
+    "unit": "Hz",
+    "start": 96.0,
+    "step": 16.0
+  },
+  "channels": {
+    "responses": [
+      3
+    ]
+  },
+  "records": {
+    "index": "record",
+    "why": "level (the last chunk before a level change) or end (the last chunk with the background's loop)",
+    "level_db": "the level in force",
+    "frame": "the station frame when it was kept"
+  },
+  "description": "the random part of the drive (the background and the bands)",
+  "arrays": [
+    {
+      "name": "values",
+      "dtype": "f8",
+      "shape": [
+        1,
+        26
+      ],
+      "unit": "V^2/Hz",
+      "offset": 0
+    }
+  ]
+}

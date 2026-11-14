@@ -1,0 +1,34 @@
+{
+  "name": "limit_ch2",
+  "kind": "limit",
+  "abscissa": {
+    "kind": "frequency",
+    "unit": "Hz",
+    "array": "frequency"
+  },
+  "channels": {
+    "responses": [
+      2
+    ]
+  },
+  "arrays": [
+    {
+      "name": "frequency",
+      "dtype": "f8",
+      "shape": [
+        25
+      ],
+      "unit": "Hz",
+      "offset": 0
+    },
+    {
+      "name": "ceiling",
+      "dtype": "f8",
+      "shape": [
+        25
+      ],
+      "unit": "g^2/Hz",
+      "offset": 200
+    }
+  ]
+}

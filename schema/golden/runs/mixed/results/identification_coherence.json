@@ -1,0 +1,50 @@
+{
+  "name": "identification_coherence",
+  "kind": "coherence",
+  "abscissa": {
+    "kind": "frequency",
+    "unit": "Hz",
+    "start": 112.0,
+    "step": 16.0
+  },
+  "channels": {
+    "responses": [
+      1
+    ],
+    "references": [
+      3
+    ]
+  },
+  "description": "identification: drive to each control response, the response taken 72 frames later (the lag the identification measured): ordinary coherence per control channel, the composite the gate judged and the lines the control trusts (1) or not (0)",
+  "arrays": [
+    {
+      "name": "values",
+      "dtype": "f8",
+      "shape": [
+        1,
+        1,
+        25
+      ],
+      "unit": "",
+      "offset": 0
+    },
+    {
+      "name": "composite",
+      "dtype": "f8",
+      "shape": [
+        25
+      ],
+      "unit": "",
+      "offset": 200
+    },
+    {
+      "name": "trusted",
+      "dtype": "f8",
+      "shape": [
+        25
+      ],
+      "unit": "",
+      "offset": 400
+    }
+  ]
+}

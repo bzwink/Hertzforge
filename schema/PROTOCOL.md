@@ -1076,7 +1076,7 @@ plain words: it never names a protocol method.
 | `mixed_timing_families` | `refused` | The selection spans devices that cannot share one sample clock | `families` |
 | `not_enough_channels` | `refused` | The selected devices have fewer channels than the table uses | `want_inputs`, `want_outputs`, `have_inputs`, `have_outputs` |
 | `hardware_busy` | `refused` | Another program holds the NI hardware | `holder` |
-| `record_unwritable` | `refused` | `random.arm`, `random.start`, `sine.arm`, `sine.start`, `shock.arm` or `shock.start`: the run's record (its folder, `run.json`, `table.json` or `setup.json`) cannot be written in the data folder; nothing is armed | `path`, `reason` |
+| `record_unwritable` | `refused` | `random.arm`, `random.start`, `sine.arm`, `sine.start`, `shock.arm`, `shock.start`, `mixed.arm` or `mixed.start`: the run's record (its folder, `run.json`, `table.json` or `setup.json`) cannot be written in the data folder; nothing is armed | `path`, `reason` |
 | `stale_revision` | `refused` | `channels.set` quoted a revision that is no longer current | `current`, `provided` |
 | `table_invalid` | `bad_request` | The channel table has errors | `errors`, `warnings` |
 | `config_invalid` | `bad_request` | The Random, classical shock, SRS shock, Sine, Mixed Mode, TWR, Explorer or Recorder configuration has errors (for Explorer and the Recorder, also at `explorer.start` or `recorder.start` when the table no longer carries the run) | `errors`, `warnings` |
@@ -3708,8 +3708,8 @@ from a file or pasted rows with `sine.profile.import`, which only computes.
                 "moving_mass_lb":{"armature":45,"slip_table":0,"drive_adapter":3,"fixturing":10,
                                   "test_article":12},
                 "crest_factor":3},
- "capture":{"rule":"off","first_s":null,"level_settle_s":1,"periodic_save_s":null,
-            "run_name":"mixed"},
+ "operator":"A. Operator","article":"Rotor housing, serial 4","notes":"first article",
+ "specification":{"document":"Test procedure 12","clause":"4.3"},"record":{"streams":true},
  "metadata":[{"key":"run_number","label":"Run Number","value":"7"}]}
 ```
 
@@ -3794,8 +3794,12 @@ and meaning are theirs, and the field applies as stated here:
 | `limits.kinematic_monitor` | true | Sine's: with `feasibility`, abort when the response's velocity or displacement, read on raw samples (tones in), passes the shaker's rating (`kinematic`). Off, the station's own raw-sample watchdog still trips on each channel's own velocity limit: the switch does not turn raw-sample protection off |
 | `limits.channels` | none | Random's limit rows, `{"channel","kind","rows":[{"freq_hz","ceiling"}]}`, on any enabled input, a control channel too, as Random's, ceilings in the channel's unit squared per Hz. The service lowers the random part where a channel would pass its ceiling; a limit never aborts, and it does not lower a tone |
 | `feasibility` | null | Random's shaker record, moving mass and `crest_factor` (default 3). Checked at configure and arm against the predicted peaks (below) |
-| `capture` | off | `rule` `off` or `entire_test` (in the run folder `run_name` under the local data root, or the first free `<run_name>-<n>` when that name is taken, so no run writes over another); `manual` and `first_seconds` are refused `out_of_range`; `level_settle_s` (default 1) and `first_s` are kept for them; `run_name` (default `mixed`) is a plain name with no path in it. `entire_test` records from engage, when the drive starts after the identification and any review hold, until the run ends: the control channels at the run's rate (`telemetry.f32`, with `capture.json`: the channel table, the rate and the configuration), the law records' description (`law.json`) and every law call (`law_ticks.bin`). No other input and no drive is recorded. `periodic_save_s` is checked and saves nothing |
+| `operator`, `article`, `notes`, `specification`, `record` | empty, null, `{"streams":true}` | Random's, for the run's record (see Mixed Mode Run Folders): the operator's words, the document and clause the test is run to, and whether the record keeps the inputs and the drive as streams. None of them changes how the run drives |
 | `metadata` | the default fields | Random's |
+
+Mixed Mode takes no `capture` (and so no `periodic_save_s`): every run is recorded as it goes
+(see Mixed Mode Run Folders), and a configuration that gives one is refused `bad_params` at
+`config.capture`.
 
 The control channels are the table's enabled `control` rows; the drive is its first enabled
 `drive` row. A configuration whose shape is wrong is refused `bad_params` naming the field in
@@ -4010,7 +4014,8 @@ adopted; only the safe stop's countdown (`orphan_s`) is the service's clock.
                  "capped":0,"live":{}},
         "tones":{"id":"servo_blend","name":"Servo blend","version":"0.1.0","sha256":null,
                  "misses":0,"capped":0,"live":{"blend_w":0.5}}},
- "feasibility":{"verdict":"pass","message":"..."},"end":null}
+ "feasibility":{"verdict":"pass","message":"..."},"end":null,
+ "record":{"folder":"/home/operator/Hertzforge_Data/20261101-142233_mixed_mixed-0002","streams":"on","problem":null}}
 ```
 
 | `state` | `phase` | Meaning |
@@ -4128,6 +4133,31 @@ and Sine's for a tone (`error`, `panicked`, `over_budget`, `over_memory`, `non_f
 **Run log.** `mixed.log` and its event take Random's form, with the kinds Random's and Sine's
 use (`law` for live parameter changes and unusable calls) and one more: `part`, a line each time
 a part switches on or off, by its window, its `end`, or `mixed.part` (naming the client).
+
+- `record` is Random's: absent until the run arms, then the run folder, whether it holds the
+  streams, and a problem writing it in words, or null.
+
+### Mixed Mode Run Folders
+
+Every Mixed Mode run that arms leaves a run folder as Random's does (Run Folders, and
+`docs/run-folder.md`, "What a Mixed Mode Run Saves"), named
+`<YYYYMMDD-HHMMSS>_mixed_<run id>`: claimed at arm and never written over, `run.json`,
+`table.json`, `setup.json` (the configuration as accepted; what it resolved to: the floor's
+breakpoints in g²/Hz with their alarm and abort bands, every tone and narrowband with its window,
+its sweep, dwell or follow, its level and its bands, the level schedule, the limits and aborts,
+the control settings and the controller's own configuration; the derived values; feasibility)
+and `law/law.json` (both roles' laws, their parameters and their guards) before the first sample,
+or the arm is refused `record_unwritable`. Every `mixed.log` entry is appended as it is made,
+with the station frame and structured `data` for each state, level, part, hold, law, trip,
+override and operator action; every enabled input and the drive as the device accepted it are
+streams from the identification on unless `record.streams` is false; the results (the floor's
+reference and its bands on the run's lines, each limit's ceiling, the identification's transfer
+function and coherence per control channel, the floor's control, residual and drive spectra at
+each level change and at the end, each tone's tracked level, phase and frequency, each
+narrowband's and the floor's level, as the run went, and every call of both laws) are written as
+the run goes, off the control thread; `end.json` holds `end` as `mixed.state` reports it. A
+failure to write the record is a log entry of kind `record` and the state's `record.problem`;
+the run goes on.
 
 ### Mixed Mode Display
 

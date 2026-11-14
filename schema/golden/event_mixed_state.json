@@ -319,6 +319,11 @@
    "verdict": "pass",
    "message": "The test is within the shaker's ratings."
   },
-  "end": null
+  "end": null,
+  "record": {
+   "folder": "/home/operator/Hertzforge_Data/20261101-142233_mixed_mixed-0002",
+   "streams": "on",
+   "problem": null
+  }
  }
 }
