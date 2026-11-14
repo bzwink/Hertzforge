@@ -90,6 +90,14 @@ pub struct WireExplorer {
     pub nfft: u64,
     pub run_name: String,
     pub metadata: Vec<WireMeta>,
+    /// The operator's words for the run's record, as Random's: who ran it, on what,
+    /// notes, and the specification it was run to.
+    pub operator: String,
+    pub article: String,
+    pub notes: String,
+    pub specification: Option<(String, String)>,
+    /// Whether the run's record holds its streams (`record.streams`, default true).
+    pub record_streams: bool,
     /// The configuration as sent, for `explorer.config` and `explorer.reset`.
     pub raw: Value,
 }
@@ -232,6 +240,11 @@ pub fn parse(config: &Value) -> Result<WireExplorer, MethodError> {
             "display",
             "capture",
             "metadata",
+            "operator",
+            "article",
+            "notes",
+            "specification",
+            "record",
         ],
     )?;
     let title = c.opt_str("title")?.unwrap_or("").to_owned();
@@ -289,6 +302,29 @@ pub fn parse(config: &Value) -> Result<WireExplorer, MethodError> {
         }
     };
 
+    let words =
+        |k: &str| -> Result<String, MethodError> { Ok(c.opt_str(k)?.unwrap_or("").to_owned()) };
+    let (operator, article, notes) = (words("operator")?, words("article")?, words("notes")?);
+    let specification = match c.m.get("specification") {
+        None | Some(Value::Null) => None,
+        Some(v) => {
+            let o = Obj::of(v, "config.specification")?;
+            only(&o, &["document", "clause"])?;
+            Some((
+                o.opt_str("document")?.unwrap_or("").to_owned(),
+                o.opt_str("clause")?.unwrap_or("").to_owned(),
+            ))
+        }
+    };
+    let record_streams = match c.m.get("record") {
+        None | Some(Value::Null) => true,
+        Some(v) => {
+            let o = Obj::of(v, "config.record")?;
+            only(&o, &["streams"])?;
+            o.opt_bool("streams")?.unwrap_or(true)
+        }
+    };
+
     Ok(WireExplorer {
         title,
         fs_hz,
@@ -300,6 +336,11 @@ pub fn parse(config: &Value) -> Result<WireExplorer, MethodError> {
         nfft,
         run_name,
         metadata,
+        operator,
+        article,
+        notes,
+        specification,
+        record_streams,
         raw: config.clone(),
     })
 }

@@ -365,6 +365,7 @@ impl Service {
                 return Err(config::config_invalid(&r));
             }
             let fs_hz = run.wire.fs();
+            let (revision, devices) = (inner.table.revision, inner.stations.devices().to_vec());
             let plan = match inner.stations.selected() {
                 Selection::Sim => StationPlan::sim(fs_hz),
                 Selection::Ni { devices } => {
@@ -386,6 +387,9 @@ impl Service {
                 data_root: self.opts.data_root.clone(),
                 records_root: self.opts.records_root(),
                 bind: self.opts.bind.clone(),
+                revision,
+                devices,
+                record: self.opts.record.clone(),
             };
             (run, ctx)
         };

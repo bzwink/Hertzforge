@@ -195,12 +195,12 @@ async fn explorer_sim_1_dwells_meet_the_stations_response_and_the_peak_is_a_mode
         listen(&mut r.c, Duration::from_millis(50)).await;
     }
     let recorded: Vec<u64> =
-        std::fs::read_to_string(std::path::Path::new(&folder).join("intents.jsonl"))
+        std::fs::read_to_string(std::path::Path::new(&folder).join("log.jsonl"))
             .unwrap()
             .lines()
             .map(|l| serde_json::from_str::<Value>(l).unwrap())
-            .filter(|l| l["verb"] == "steer")
-            .map(|l| l["frame"].as_u64().unwrap())
+            .filter(|l| l["kind"] == "intent" && l["data"]["verb"] == "steer")
+            .map(|l| l["data"]["frame"].as_u64().unwrap())
             .take(frames.len())
             .collect();
     assert_eq!(recorded, frames);
