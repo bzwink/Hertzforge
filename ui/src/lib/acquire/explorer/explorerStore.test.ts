@@ -12,7 +12,9 @@ import { RequestError, ServiceClient } from '$lib/protocol/client.svelte';
 import { createControlServer, type ControlServerOptions } from '$lib/protocol/mock/control';
 import { mockSocketFactory } from '$lib/protocol/mock/socket';
 import type { ExplorerData, ExplorerSteerResult } from '$lib/protocol/explorer';
+import { RunOpen, workspaceForRun } from '../runOpen.svelte';
 import { AcquireState } from '../store.svelte';
+import { recordProblem } from '../words';
 import { SineStore } from '../sine/sineStore.svelte';
 import { ExplorerStore } from './explorerStore.svelte';
 import { ExplorerViewsState } from './explorerViews.svelte';
@@ -397,6 +399,51 @@ describe('the Explorer store', () => {
 		await until(() => explorer.status?.state === 'finished', 10000);
 		expect(explorer.status?.end?.outcome).toBe('safe_stop');
 	}, 20000);
+
+	it("names the Explorer run's folder from start, and says when its record has a problem while the run goes on", async () => {
+		const { explorer } = await screen({ speed: 4, record: 'problem' });
+		ready(explorer);
+		explorer.setup.capture.run_name = 'fixture_a';
+		explorer.setup.record.operator = 'A. Operator';
+		await running(explorer);
+		expect(explorer.status?.record).toEqual({ folder: '~/Hertzforge_Data/fixture_a', streams: 'on', problem: null });
+		expect(explorer.run?.record?.folder).toBe('~/Hertzforge_Data/fixture_a');
+		expect(explorer.served?.config?.operator).toBe('A. Operator');
+		expect(explorer.recordChannels).toBe(explorer.acq.rows.filter((r) => r.enabled).length);
+		expect(explorer.recordRateHz).toBe(12800);
+		await until(() => !!explorer.status?.record?.problem, 10000);
+		expect(explorer.status?.state).toBe('running');
+		// the notice the shared Notices draws from the run head while the run goes on
+		const words = recordProblem(explorer.run?.record, false);
+		expect(words?.title).toBe('Recording Has a Problem');
+		expect(words?.text).toMatch(/^The run goes on\. Recording of the inputs stream stopped/);
+		await until(() => explorer.log.some((e) => e.kind === 'record'));
+		expect(await explorer.stop()).toBe(true);
+		await until(() => explorer.status?.state === 'finished', 15000);
+		expect(explorer.status?.end?.outcome).toBe('operator_stop');
+		expect(explorer.run?.record?.folder).toBe('~/Hertzforge_Data/fixture_a');
+	}, 30000);
+
+	it('opens a finished Explorer run in the Signals workspace, where its time histories go', async () => {
+		expect(workspaceForRun('explorer')).toBe('signals');
+		const shown: string[] = [];
+		const open = new RunOpen({ bring: async () => ['Channel Table', 'inputs', 'drives', 'Run Record'], show: (w) => shown.push(w) }, 'explorer');
+		expect(await open.open('/data/hf/explorer')).toBe(true);
+		expect(shown).toEqual(['signals']);
+		expect(open.added).toContain('inputs');
+	});
+
+	it("refuses an Explorer start whose record cannot be written by name, before anything is driven", async () => {
+		const { explorer } = await screen({ record: 'unwritable' });
+		ready(explorer);
+		expect(await explorer.apply()).toBe(true);
+		expect(await explorer.start()).toBe(false);
+		expect(explorer.refusal?.reason).toBe('record_unwritable');
+		expect(explorer.refusal?.title).toBe("The Run's Record Cannot Be Written");
+		expect(explorer.refusal?.facts).toContain('Path: ~/Hertzforge_Data/explorer');
+		await until(() => explorer.status?.state === 'finished');
+		expect([explorer.status?.end?.outcome, explorer.status?.t_s, explorer.status?.record]).toEqual(['arm_refused', null, null]);
+	});
 
 	it('round-trips every Explorer setup field through what the service holds', async () => {
 		const { explorer } = await screen();

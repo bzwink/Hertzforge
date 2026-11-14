@@ -14,7 +14,7 @@
 
 import type { ChannelRow, ReportItem } from '$lib/protocol/types';
 import type { ExplorerConfig } from '$lib/protocol/explorer';
-import type { FieldErrors } from '../setup';
+import { defaultRecord, type FieldErrors, type RecordDraft } from '../setup';
 
 // ---------------------------------------------------------------------------------------------
 // The draft
@@ -44,6 +44,8 @@ export interface ExplorerDraft {
 	display: { nfft: number };
 	capture: { run_name: string };
 	metadata: { key: string; label: string; value: string }[];
+	/** The run's record: the operator's words and whether the time histories are kept (Random's). */
+	record: RecordDraft;
 	steps: ExplorerSteps;
 }
 
@@ -64,6 +66,7 @@ export function defaultExplorerSetup(): ExplorerDraft {
 		display: { nfft: 4096 },
 		capture: { run_name: 'explorer' },
 		metadata: [{ key: 'run_number', label: 'Run Number', value: '' }],
+		record: defaultRecord(),
 		steps: { ...DEFAULT_STEPS }
 	};
 }
@@ -84,6 +87,7 @@ export function mergeExplorerSetup(saved: Partial<ExplorerDraft> | null): Explor
 	out.display = { ...base.display, ...(saved.display ?? {}) };
 	out.capture = { ...base.capture, ...(saved.capture ?? {}) };
 	if (!Array.isArray(out.metadata)) out.metadata = base.metadata;
+	out.record = { ...base.record, ...(saved.record ?? {}) };
 	out.steps = { ...base.steps, ...(saved.steps ?? {}) };
 	return out;
 }
@@ -93,6 +97,8 @@ export function mergeExplorerSetup(saved: Partial<ExplorerDraft> | null): Explor
 
 /** The configuration the wire takes: every field explicit, the steering steps left out. */
 export function toExplorerConfig(d: ExplorerDraft): ExplorerConfig {
+	const r = d.record;
+	const [document, clause] = [r.document.trim(), r.clause.trim()];
 	return {
 		title: d.title.trim(),
 		acquisition: { fs_hz: d.acquisition.fs_hz },
@@ -102,7 +108,12 @@ export function toExplorerConfig(d: ExplorerDraft): ExplorerConfig {
 		slew: { freq_oct_per_s: d.slew.freq_oct_per_s, drive_db_per_s: d.slew.drive_db_per_s },
 		display: { nfft: d.display.nfft },
 		capture: { run_name: d.capture.run_name.trim() },
-		metadata: d.metadata.map((m) => (m.label ? { key: m.key, label: m.label, value: m.value } : { key: m.key, value: m.value }))
+		metadata: d.metadata.map((m) => (m.label ? { key: m.key, label: m.label, value: m.value } : { key: m.key, value: m.value })),
+		operator: r.operator.trim(),
+		article: r.article.trim(),
+		notes: r.notes.trim(),
+		specification: document || clause ? { document, clause } : null,
+		record: { streams: r.streams }
 	};
 }
 
@@ -122,6 +133,14 @@ export function fromExplorerConfig(c: ExplorerConfig, steps: ExplorerSteps = DEF
 		display: { nfft: c.display?.nfft ?? 4096 },
 		capture: { run_name: c.capture?.run_name ?? 'explorer' },
 		metadata: (c.metadata ?? []).map((m) => ({ key: m.key, label: m.label ?? '', value: m.value })),
+		record: {
+			operator: c.operator ?? '',
+			article: c.article ?? '',
+			notes: c.notes ?? '',
+			document: c.specification?.document ?? '',
+			clause: c.specification?.clause ?? '',
+			streams: c.record?.streams ?? true
+		},
 		steps: { ...steps }
 	};
 }
@@ -150,7 +169,7 @@ export type ExplorerSection = 'station' | 'test' | 'capture';
 export const EXPLORER_SECTIONS: { id: ExplorerSection; label: string }[] = [
 	{ id: 'station', label: 'Station & Channels' },
 	{ id: 'test', label: 'Tone & Drive' },
-	{ id: 'capture', label: 'Capture' }
+	{ id: 'capture', label: 'Run Record' }
 ];
 
 /** The table's findings, located on the station's section. */
@@ -185,7 +204,7 @@ export function explorerByKey(items: { field?: string | null; channel?: number |
 /** The section a key belongs to. */
 export function explorerSectionOf(key: string): ExplorerSection {
 	if (/^station|^table|^channel/.test(key)) return 'station';
-	if (/^(capture|metadata)(\.|$)/.test(key)) return 'capture';
+	if (/^(capture|metadata|operator|article|notes|specification|record)(\.|$)/.test(key)) return 'capture';
 	return 'test';
 }
 
@@ -218,6 +237,7 @@ export function localErrors(d: ExplorerDraft): FieldErrors {
 	need(out, 'slew.drive_db_per_s', d.slew.drive_db_per_s);
 	need(out, 'display.nfft', d.display.nfft);
 	if (!d.capture.run_name.trim()) add(out, 'capture.run_name', 'Name the run folder.');
+	if (d.record.clause.trim() && !d.record.document.trim()) add(out, 'specification.document', 'Name the document this clause is from.');
 	const s = d.steps;
 	for (const k of ['fine_per_oct', 'coarse_per_oct', 'fine_db', 'coarse_db', 'sweep_oct_per_min'] as const) {
 		if (!Number.isFinite(s[k])) add(out, `steps.${k}`, NUMBER);

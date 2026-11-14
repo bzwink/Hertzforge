@@ -23,7 +23,7 @@
  * to draw. Nothing here is the service's analysis or its arithmetic beyond what PROTOCOL states.
  */
 
-import type { ChannelRow, DataSource, LogEntry, LogKind, ReadingRow, RefusalReason, Series, SpectrumView, StationRef, View } from '../types';
+import type { ChannelRow, DataSource, LogEntry, LogKind, ReadingRow, RefusalReason, RunRecordRef, Series, SpectrumView, StationRef, View } from '../types';
 import type {
 	ExplorerConfig,
 	ExplorerDerived,
@@ -63,7 +63,7 @@ const NOISE = 1e-4;
 
 const QUANTITIES: ExplorerLiveQuantity[] = ['survey', 'spectrum', 'time', 'readings'];
 const LIVE: ExplorerRunState[] = ['starting', 'running', 'stopping'];
-const CONFIG_KEYS = ['title', 'acquisition', 'band_hz', 'start_hz', 'max_drive_vpk', 'slew', 'display', 'capture', 'metadata'];
+const CONFIG_KEYS = ['title', 'acquisition', 'band_hz', 'start_hz', 'max_drive_vpk', 'slew', 'display', 'capture', 'metadata', 'operator', 'article', 'notes', 'specification', 'record'];
 
 function refuse(code: 'refused' | 'bad_request', reason: RefusalReason | 'level_zero', message: string, detail?: Record<string, unknown>): never {
 	throw new MockError(code, message, reason as RefusalReason, detail);
@@ -143,6 +143,8 @@ interface Run {
 	/** The last frequency a point was taken at, for a pass through a span. */
 	lastPointHz: number | null;
 	health: ExplorerHealth;
+	/** The run's record, from start on. */
+	record: RunRecordRef | null;
 	/** Batches run: the gap between two is known from the second. */
 	batches: number;
 	timer: ReturnType<typeof setInterval> | null;
@@ -158,8 +160,14 @@ export interface ExplorerMock {
 	seatExpired(): void;
 }
 
-/** What the Explorer mock needs of the control service around it: classical shock's. */
+/**
+ * What the Explorer mock needs of the control service around it: classical shock's, and how a
+ * run's record behaves (refused at start, or a stream failing as the run goes).
+ */
 export type ExplorerMockHost = ShockMockHost;
+
+/** Where an Explorer run's folder is made: its run name under the local data folder. */
+const DATA_ROOT = '~/Hertzforge_Data';
 
 export function createExplorerMock(host: ExplorerMockHost): ExplorerMock {
 	let run: Run | null = null;
@@ -221,9 +229,9 @@ export function createExplorerMock(host: ExplorerMockHost): ExplorerMock {
 	/** Shape first, as the service reads the request: a key the wire does not have is refused by name. */
 	function shapeOk(c: Record<string, unknown>) {
 		for (const k of Object.keys(c)) if (!CONFIG_KEYS.includes(k)) bad(`config.${k}`, `The configuration has no "${k}"; a level is set in volts peak at the drive only.`);
-		const nested: Record<string, string[]> = { acquisition: ['fs_hz'], slew: ['freq_oct_per_s', 'drive_db_per_s'], display: ['nfft'], capture: ['run_name'] };
+		const nested: Record<string, string[]> = { acquisition: ['fs_hz'], slew: ['freq_oct_per_s', 'drive_db_per_s'], display: ['nfft'], capture: ['run_name'], specification: ['document', 'clause'], record: ['streams'] };
 		for (const [k, keys] of Object.entries(nested)) {
-			if (c[k] === undefined) continue;
+			if (c[k] === undefined || ((k === 'specification' || k === 'record') && c[k] === null)) continue;
 			if (!isObject(c[k])) bad(`config.${k}`, `"${k}" is an object.`);
 			for (const kk of Object.keys(c[k] as object)) if (!keys.includes(kk)) bad(`config.${k}.${kk}`, `"${k}" has no "${kk}".`);
 		}
@@ -309,7 +317,7 @@ export function createExplorerMock(host: ExplorerMockHost): ExplorerMock {
 	}
 
 	const started = (r: Run) => r.state !== 'configured';
-	const armed = (r: Run) => started(r) && r.state !== 'starting';
+	const armed = (r: Run) => started(r) && r.state !== 'starting' && r.end?.outcome !== 'arm_refused';
 
 	function stateOf(r: Run | null): ExplorerState {
 		if (!r) return emptyState();
@@ -337,13 +345,14 @@ export function createExplorerMock(host: ExplorerMockHost): ExplorerMock {
 			health: on ? { ...r.health, pass_ms: { ...r.health.pass_ms } } : null,
 			stall: null,
 			stop: r.stop,
-			end: r.end
+			end: r.end,
+			record: r.record ? { ...r.record } : null
 		};
 	}
 
 	function stateChanged(force = false) {
 		const s = stateOf(run);
-		const key = JSON.stringify([s.run_id, s.state, s.phase, s.sweep, s.stop, s.stall, s.end]);
+		const key = JSON.stringify([s.run_id, s.state, s.phase, s.sweep, s.stop, s.stall, s.end, s.record]);
 		if (!force && key === lastStateKey) return;
 		lastStateKey = key;
 		host.broadcast('explorer.state', s as unknown as Record<string, unknown>);
@@ -405,9 +414,32 @@ export function createExplorerMock(host: ExplorerMockHost): ExplorerMock {
 			surveyRevision: 0,
 			lastPointHz: null,
 			health: { engine_ticks: 0, worst_tick_ms: 0.4, budget_ms: round((1000 * fig.block) / fs, 3), health_faults: 0, ring_overruns: 0, blocks_dropped: 0, driver_warnings: 0, pass_ms: { last: null, worst: null }, batch_gap_ms: null },
+			record: null,
 			batches: 0,
 			timer: null
 		};
+	}
+
+	/**
+	 * The run's record, at start before the station is opened: its folder, or the start refused
+	 * `record_unwritable` (the run ends `arm_refused`, nothing driven), as the service does.
+	 */
+	function claimRecord(r: Run) {
+		const folder = `${DATA_ROOT}/${r.config.capture?.run_name ?? 'explorer'}`;
+		if (host.record === 'unwritable') {
+			const reason = 'Permission denied';
+			const message = `The run's record could not be written, so the run did not start: ${folder} (${reason}). Choose a data folder that can be written.`;
+			r.end = { outcome: 'arm_refused', message, at_s: null, at_hz: null, vpk: null, ramp_s: null, trip: null };
+			r.state = 'finished';
+			r.phase = 'faulted';
+			addLog('state', `start refused: ${message}`);
+			stateChanged();
+			refuse('refused', 'record_unwritable', message, { path: folder, reason });
+		}
+		const streams = r.config.record?.streams === false ? 'off' : 'on';
+		r.record = { folder, streams, problem: null };
+		if (streams === 'off') addLog('record', "the run's streams are not recorded: switched off in the setup");
+		addLog('note', `records in ${folder}`);
 	}
 
 	/** The generated frame a change made now first appears in: the lead-in keeps two lookaheads ahead. */
@@ -581,6 +613,12 @@ export function createExplorerMock(host: ExplorerMockHost): ExplorerMock {
 		}
 		survey(r);
 		rephase(r);
+		if (host.record === 'problem' && r.record && r.record.streams === 'on' && r.record.problem === null && tSec(r) >= 2) {
+			const problem = 'Recording of the inputs stream stopped: a write failed: no space left on the disk. The run goes on.';
+			r.record = { ...r.record, problem };
+			addLog('record', problem);
+			stateChanged(true);
+		}
 	}
 
 	// ---- display ----------------------------------------------------------------------------------
@@ -921,6 +959,7 @@ export function createExplorerMock(host: ExplorerMockHost): ExplorerMock {
 				r.state = 'starting';
 				r.phase = 'priming';
 				stateChanged();
+				claimRecord(r);
 				// The simulated station opens at once and programs the rate asked.
 				addLog('station', `rate ${r.fs} Hz adopted (asked ${r.config.acquisition?.fs_hz ?? FS_DEFAULT} Hz); band ${r.band[0]} to ${r.band[1]} Hz`);
 				r.derived = { ...r.derived, grid: { ...r.derived.grid, actual: true } };

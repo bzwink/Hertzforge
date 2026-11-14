@@ -18,10 +18,37 @@ const EXAMPLE: ExplorerConfig = {
 	slew: { freq_oct_per_s: 1, drive_db_per_s: 6 },
 	display: { nfft: 4096 },
 	capture: { run_name: 'explorer' },
-	metadata: [{ key: 'run_number', label: 'Run Number', value: '3' }]
+	metadata: [{ key: 'run_number', label: 'Run Number', value: '3' }],
+	operator: 'A. Operator',
+	article: 'Bracket, SN 0042',
+	notes: '',
+	specification: { document: 'Test procedure', clause: '4.2' },
+	record: { streams: true }
 };
 
 describe('the Explorer setup draft', () => {
+	it("carries the Explorer run record's words and its streams switch to the wire and back", () => {
+		const d = fromExplorerConfig(EXAMPLE);
+		expect(d.record).toEqual({ operator: 'A. Operator', article: 'Bracket, SN 0042', notes: '', document: 'Test procedure', clause: '4.2', streams: true });
+		d.record.streams = false;
+		d.record.document = '';
+		d.record.clause = '';
+		const c = toExplorerConfig(d);
+		expect([c.record, c.specification]).toEqual([{ streams: false }, null]);
+		// a configuration without them reads as the wire's defaults: streams on, no words
+		const bare = fromExplorerConfig({ max_drive_vpk: 0.5 });
+		expect(bare.record).toEqual({ operator: '', article: '', notes: '', document: '', clause: '', streams: true });
+		// a clause with no document is said before anything is sent, on the record's section
+		bare.record.clause = '4.2';
+		expect(localErrors(bare)['specification.document']).toEqual(['Name the document this clause is from.']);
+		expect(['operator', 'article', 'notes', 'specification.document', 'record.streams'].map(explorerSectionOf)).toEqual(['capture', 'capture', 'capture', 'capture', 'capture']);
+		expect(EXPLORER_SECTIONS.find((s) => s.id === 'capture')?.label).toBe('Run Record');
+		// a draft saved before the record existed reads back with it
+		const old = { ...defaultExplorerSetup() } as Partial<ReturnType<typeof defaultExplorerSetup>>;
+		delete old.record;
+		expect(mergeExplorerSetup(old).record.streams).toBe(true);
+	});
+
 	it('sends every Explorer wire field and reads each back unchanged', () => {
 		expect(toExplorerConfig(fromExplorerConfig(EXAMPLE))).toEqual(EXAMPLE);
 		const keys = Object.keys(toExplorerConfig({ ...defaultExplorerSetup(), max_drive_vpk: 0.5 })).sort();
@@ -44,7 +71,7 @@ describe('the Explorer setup draft', () => {
 
 	it('fills an Explorer configuration that leaves fields out with the wire defaults', () => {
 		const d = fromExplorerConfig({ max_drive_vpk: 0.4 });
-		expect(toExplorerConfig(d)).toEqual({ title: '', acquisition: { fs_hz: null }, band_hz: [10, 2000], start_hz: 100, max_drive_vpk: 0.4, slew: { freq_oct_per_s: 1, drive_db_per_s: 6 }, display: { nfft: 4096 }, capture: { run_name: 'explorer' }, metadata: [] });
+		expect(toExplorerConfig(d)).toEqual({ title: '', acquisition: { fs_hz: null }, band_hz: [10, 2000], start_hz: 100, max_drive_vpk: 0.4, slew: { freq_oct_per_s: 1, drive_db_per_s: 6 }, display: { nfft: 4096 }, capture: { run_name: 'explorer' }, metadata: [], operator: '', article: '', notes: '', specification: null, record: { streams: true } });
 	});
 
 	it('reads an Explorer draft back from storage, an emptied field kept empty, a missing part from the defaults', () => {

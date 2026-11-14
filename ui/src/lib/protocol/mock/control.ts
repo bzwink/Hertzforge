@@ -115,7 +115,7 @@ export interface ControlServerOptions {
 	mimoShockAbsoluteAbort?: boolean;
 	/** Where a Random or Sine run's folder is made (default `~/Hertzforge_Data`). */
 	dataRoot?: string;
-	/** A Random, Sine or classical shock run's record: refused at arm (`unwritable`), or a stream stops while it runs (`problem`). */
+	/** A Random, Sine, classical shock or Explorer run's record: refused at arm or start (`unwritable`), or a stream stops while it runs (`problem`). */
 	record?: 'unwritable' | 'problem';
 }
 
@@ -953,7 +953,8 @@ export function createControlServer(options: ControlServerOptions = {}): MockSer
 			return { source: sel.source, ref: { kind: sel.kind, class: sel.class, devices } };
 		},
 		clientName,
-		feasibilityExceeds: options.feasibilityExceeds ?? false
+		feasibilityExceeds: options.feasibilityExceeds ?? false,
+		record: options.record
 	});
 
 	const recorder = createRecorderMock({

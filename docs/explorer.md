@@ -194,8 +194,20 @@ shows the run and keeps Stop and Abort, and the steering stays on the main scree
 
 ## What the Run Records
 
-Each run writes its folder (the run folder's name, `explorer` unless named, under the program's
-local data folder; when that name is taken, the run gets the next free one, `explorer-2`, ...): the
-configuration with the station and the rates asked and adopted, every steering verb the run took
-with its station time, the frame it took effect at, what was asked and what was adopted, the survey
-line at the end, and how the run ended. No samples are recorded.
+Each run writes a run folder as every recorded control run does (`docs/run-folder.md`, "What an
+Explorer Run Saves"): the run folder's name, `explorer` unless named, under the program's local
+data folder; when that name is taken, the run gets the next free one, `explorer-2`, and so on. It
+holds the configuration as accepted and what it resolved to, the channel table, the station and
+the rates asked and adopted, the run's log with every steering verb the run took (its station
+time, the frame it took effect at, what was asked and what was adopted), every acquired input as
+read and the drive as the device accepted it, the survey line and each channel's last display
+spectrum at the end, and how the run ended with what it measured. The operator, the article, notes
+and the specification the run was made to go in with it. The time histories can be left out
+(**Record time histories** off in the setup); the rest is always kept.
+
+The folder is written before the station is opened: a data folder that cannot be written refuses
+the start, and nothing is driven. While the run goes, the screen names the folder; a problem
+writing it is a notice, and the run goes on. A finished run offers **Open in Analysis**, which
+converts the folder and opens its data in the analysis side's Signals workspace, and **Copy Folder
+Path**. The survey line and the spectra are magnitudes with no phase, so on the analysis side they
+stay in the run's record as named arrays; the time histories become signals there.
