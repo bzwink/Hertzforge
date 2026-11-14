@@ -284,14 +284,20 @@ fn every_wire_field_reaches_the_controllers_configuration() {
         ("feasibility.kinematics_hp_hz", json!(3), |c, _| {
             c.kinematics_hp_hz == 3.0
         }),
-        ("capture.auto_start", json!(true), |c, _| {
-            c.capture.auto_start
+        ("operator", json!("Tester"), |c, _| {
+            meta(c, "operator") == Some("Tester")
         }),
-        ("capture.run_name", json!("bench_r1"), |c, _| {
-            c.capture.run_name == "bench_r1"
+        ("article", json!("Housing"), |c, _| {
+            meta(c, "test_article") == Some("Housing")
         }),
-        ("metadata[1].value", json!("Plate"), |c, _| {
-            c.metadata[1].value == "Plate"
+        ("notes", json!("bolted at four corners"), |c, _| {
+            meta(c, "notes") == Some("bolted at four corners")
+        }),
+        ("specification.clause", json!("2.3"), |c, _| {
+            meta(c, "clause") == Some("2.3")
+        }),
+        ("metadata[0].value", json!("8"), |c, _| {
+            c.metadata[0].value == "8"
         }),
     ];
     let base = golden();
@@ -318,6 +324,37 @@ fn every_wire_field_reaches_the_controllers_configuration() {
     // The reference the core is given is the stored record, raw: prep is the core's.
     assert_eq!(built.reference.samples, stored().samples);
     assert_eq!(built.reference.fs_hz, 12_800.0);
+}
+
+fn meta<'a>(c: &'a TwrConfig, key: &str) -> Option<&'a str> {
+    c.metadata
+        .iter()
+        .find(|m| m.key == key)
+        .map(|m| m.value.as_str())
+}
+
+/// One way to record: a configuration that still asks for the module's own
+/// capture is refused at the field, and the controller's capture never starts,
+/// whatever the configuration. Red if `capture` were taken again, or if the
+/// controller were handed a capture that starts.
+#[test]
+fn a_twr_capture_is_refused_and_the_controllers_capture_stays_off() {
+    let mut c = golden();
+    c["capture"] = json!({"auto_start": true, "run_name": "twr_run"});
+    let e = config::parse(&c).expect_err("a capture is refused");
+    assert_eq!(e.reason, Some("bad_params"), "{}", e.message);
+    assert_eq!(
+        e.detail.as_deref().map(|d| d["param"].clone()),
+        Some(json!("config.capture")),
+        "{}",
+        e.message
+    );
+    let mut c = golden();
+    c["record"] = json!({"streams": false});
+    let w = wire(&c);
+    assert!(!w.record_streams);
+    assert!(!build(&c).capture.auto_start);
+    assert!(wire(&golden()).record_streams);
 }
 
 #[test]
@@ -485,12 +522,6 @@ fn the_checks_refuse_each_problem_by_name_at_its_field() {
             json!(0),
             "out_of_range",
             "feasibility.disp_pkpk_in",
-        ),
-        (
-            "capture.run_name",
-            json!("a/b"),
-            "out_of_range",
-            "capture.run_name",
         ),
     ];
     assert!(check(&golden()).errors.is_empty());

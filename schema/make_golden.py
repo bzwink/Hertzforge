@@ -1443,7 +1443,9 @@ SRS_CONFIG = {
                     'moving_mass_lb': {'armature': 45, 'slip_table': 0, 'drive_adapter': 3,
                                        'fixturing': 10, 'test_article': 12},
                     'residual_velocity_ips': 0.1, 'residual_disp_in': 0.001},
-    'capture': {'auto_start': False, 'run_name': 'srs_shock'},
+    'operator': 'Operator', 'article': 'Bracket', 'notes': '',
+    'specification': {'document': 'Example procedure', 'clause': '4.2'},
+    'record': {'streams': True},
     'metadata': [{'key': 'run_number', 'label': 'Run Number', 'value': '7'},
                  {'key': 'test_article', 'label': 'Test Article', 'value': 'Bracket'},
                  {'key': 'serial_number', 'label': 'SN', 'value': '0042'},
@@ -2325,7 +2327,9 @@ TWR_CONFIG = {
                'divergence_plays': 3, 'divergence_rise_frac': 0.1},
     'feasibility': {'peak_accel': None, 'peak_velocity_ips': None, 'disp_pkpk_in': 1.0,
                     'kinematics_hp_hz': 5},
-    'capture': {'auto_start': False, 'run_name': 'twr_run'},
+    'operator': 'Operator', 'article': 'Bracket', 'notes': '',
+    'specification': {'document': 'Example procedure', 'clause': '4.2'},
+    'record': {'streams': True},
     'metadata': TWR_METADATA,
 }
 

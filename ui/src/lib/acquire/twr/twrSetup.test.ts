@@ -65,7 +65,11 @@ function everyField(): TwrConfig {
 			divergence_rise_frac: 0.15
 		},
 		feasibility: { peak_accel: 5, peak_velocity_ips: 20, disp_pkpk_in: 0.9, kinematics_hp_hz: 3 },
-		capture: { auto_start: true, run_name: 'twr_r1' },
+		operator: 'J. Operator',
+		article: 'Bracket',
+		notes: 'bolted at four corners',
+		specification: { document: 'Test procedure', clause: '4.2' },
+		record: { streams: false },
 		metadata: [{ key: 'run_number', label: 'Run Number', value: '7' }]
 	};
 }
@@ -192,7 +196,7 @@ describe("where the service's TWR findings land", () => {
 
 	it('in the section that edits it', () => {
 		const sections = Object.fromEntries(
-			['title', 'reference', 'prep.scale', 'section.len', 'pads.pre', 'acquisition.fs_hz', 'identification.nfft', 'law.params.beta', 'control.law_budget', 'inverse.tikhonov_floor', 'correction.band_hz', 'schedule.gate_pct', 'run.count', 'adaptation.during_playback', 'limits.drive_vpk_ceiling', 'feasibility.disp_pkpk_in', 'capture.run_name', 'metadata', 'station.channels'].map((k) => [k, twrSectionOf(k)])
+			['title', 'reference', 'prep.scale', 'section.len', 'pads.pre', 'acquisition.fs_hz', 'identification.nfft', 'law.params.beta', 'control.law_budget', 'inverse.tikhonov_floor', 'correction.band_hz', 'schedule.gate_pct', 'run.count', 'adaptation.during_playback', 'limits.drive_vpk_ceiling', 'feasibility.disp_pkpk_in', 'operator', 'specification.document', 'record.streams', 'metadata', 'station.channels'].map((k) => [k, twrSectionOf(k)])
 		);
 		expect(sections).toEqual({
 			title: 'reference',
@@ -211,8 +215,10 @@ describe("where the service's TWR findings land", () => {
 			'adaptation.during_playback': 'schedule',
 			'limits.drive_vpk_ceiling': 'limits',
 			'feasibility.disp_pkpk_in': 'limits',
-			'capture.run_name': 'capture',
-			metadata: 'capture',
+			operator: 'record',
+			'specification.document': 'record',
+			'record.streams': 'record',
+			metadata: 'record',
 			'station.channels': 'station'
 		});
 	});

@@ -81,6 +81,9 @@ pub struct ShotRecording {
     station_frame: Arc<AtomicU64>,
     inputs_open: bool,
     drives_open: bool,
+    /// Counts the station's starts, each the beginning of a shot, when a run
+    /// asks to know which shot a play was ([`ShotRecording::wrap_counted`]).
+    starts: Option<Arc<AtomicU64>>,
 }
 
 impl ShotRecording {
@@ -100,6 +103,29 @@ impl ShotRecording {
             station_frame,
             inputs_open: false,
             drives_open: false,
+            starts: None,
+        })
+    }
+
+    /// [`ShotRecording::wrap`], counting in `starts` every start the station
+    /// accepted: after a play, the count less one is the shot it was, whether or
+    /// not the streams are recorded.
+    pub fn wrap_counted(
+        inner: Box<dyn Backend>,
+        inputs: StreamTap,
+        drives: StreamTap,
+        station_frame: Arc<AtomicU64>,
+        starts: Arc<AtomicU64>,
+    ) -> Box<dyn Backend> {
+        Box::new(ShotRecording {
+            inner,
+            inputs,
+            drives,
+            frames: 0,
+            station_frame,
+            inputs_open: false,
+            drives_open: false,
+            starts: Some(starts),
         })
     }
 
@@ -151,6 +177,9 @@ impl Backend for ShotRecording {
             let facts = self.begin();
             self.inputs.begin_shot(facts);
             self.inputs_open = true;
+            if let Some(n) = self.starts.as_ref() {
+                n.fetch_add(1, Ordering::Relaxed);
+            }
         }
         Ok(())
     }

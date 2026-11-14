@@ -1076,7 +1076,7 @@ plain words: it never names a protocol method.
 | `mixed_timing_families` | `refused` | The selection spans devices that cannot share one sample clock | `families` |
 | `not_enough_channels` | `refused` | The selected devices have fewer channels than the table uses | `want_inputs`, `want_outputs`, `have_inputs`, `have_outputs` |
 | `hardware_busy` | `refused` | Another program holds the NI hardware | `holder` |
-| `record_unwritable` | `refused` | `random.arm`, `random.start`, `sine.arm`, `sine.start`, `shock.arm`, `shock.start` or `mimo_random.start`: the run's record (its folder, `run.json`, `table.json` or `setup.json`) cannot be written in the data folder; nothing is armed | `path`, `reason` |
+| `record_unwritable` | `refused` | `random.arm`, `random.start`, `sine.arm`, `sine.start`, `shock.arm`, `shock.start`, `srs.arm`, `srs.start`, `twr.arm`, `twr.start` or `mimo_random.start`: the run's record (its folder, `run.json`, `table.json` or `setup.json`) cannot be written in the data folder; nothing is armed | `path`, `reason` |
 | `stale_revision` | `refused` | `channels.set` quoted a revision that is no longer current | `current`, `provided` |
 | `table_invalid` | `bad_request` | The channel table has errors | `errors`, `warnings` |
 | `config_invalid` | `bad_request` | The Random, classical shock, SRS shock, Sine, Mixed Mode, TWR, Explorer or Recorder configuration has errors (for Explorer and the Recorder, also at `explorer.start` or `recorder.start` when the table no longer carries the run) | `errors`, `warnings` |
@@ -1727,7 +1727,13 @@ any way the run ends, `end.json` holds `end` as `random.state` reports it, and `
 its identification and one for each pulse fired, each named in the stream's `shots`, and its
 results include each pulse's SRS, verdicts and kinematics, written as the pulse is judged
 (`docs/run-folder.md`, "What a Classical Shock Run Saves"). `shock.state` carries `record` as
-`random.state` does.
+`random.state` does. An SRS shock run's record is laid out the same way: shots for its
+identification and every pulse, and results for the target with its envelope, the synthesis, the
+identification and each pulse's SRS, drive table, kinematics and verdict (`docs/run-folder.md`,
+"What an SRS Run Saves"); `srs.state` carries `record` as `random.state` does. A TWR run's streams
+are shots too, one for its identification and one for each play, the play the run ended on and one
+cut short included, and its results include each play's measures and outcome and every call of its
+law (`docs/run-folder.md`, "What a TWR Run Saves"); `twr.state` carries `record` likewise.
 
 The record is written on its own thread. A failure to write it is a log entry of kind `record`
 and the state's `record.problem`; the run goes on.
@@ -2524,7 +2530,8 @@ SRS shock has no trains and no gunfire bursts: every pulse is a synthesized puls
                 "moving_mass_lb":{"armature":45,"slip_table":0,"drive_adapter":3,"fixturing":10,
                                   "test_article":12},
                 "residual_velocity_ips":0.1,"residual_disp_in":0.001},
- "capture":{"auto_start":false,"run_name":"srs_shock"},
+ "operator":"Operator","article":"Bracket","notes":"",
+ "specification":{"document":"Example procedure","clause":"4.2"},"record":{"streams":true},
  "metadata":[{"key":"run_number","label":"Run Number","value":"7"}]}
 ```
 
@@ -2560,8 +2567,11 @@ SRS shock has no trains and no gunfire bursts: every pulse is a synthesized puls
 | `limits.monitors` | none | Monitored inputs by table `index`, as classical shock's |
 | `limit_channels` | null | Inputs whose response must stay under a bound: `headroom_db` (0 to 40) how far under its bound a prediction must stay, and `channels`, each a table `index` (any row but the control row; without an `frf`, an enabled input), a `bound` (`{"kind":"flat","accel_g"}` or `{"kind":"per_band","bounds_g":[...]}`, one per band, null for no bound at a band) and an optional `frf` (`{"freqs_hz":[...],"mag":[...]}`, the drive-to-channel gain in g per volt, frequencies ascending from 0; null: identification measures it). At proceed the service notches the drive where a prediction would pass a bound, and before each pulse caps every component by what the prediction leaves. An empty `channels` list is no limit channels |
 | `feasibility` | null | Random's shaker record and moving mass, and the synthesis's residual velocity (in/s) and displacement (in) tolerances (default 0.1 and 0.001). Checked at arm. Without it, feasibility is not evaluated and the run says so |
-| `capture` | off | `{"auto_start","run_name"}`. With `auto_start` the recording starts at arm in the run folder `srs_run_<unix seconds>` under the local data root, or the first free `srs_run_<unix seconds>-<n>` when that name is taken; `run_name` is accepted and not used. It holds the control channel's record of each pulse, one after another at the station rate (`telemetry.f32`, with `capture.json`: the channel table, the rate and the run's settings); the limit channels, the identification and the drive are not recorded. Beside it go the law's records: `law.json` once, and `law_pulses.bin` with its index `law_pulses.jsonl`, a record per law call holding the target and measured spectra it was handed, the gains it returned and what was applied. With `auto_start` false nothing is written |
+| `operator`, `article`, `notes`, `specification`, `record` | empty, null, `{"streams":true}` | The run's record, as Random's (see "Random Test Configuration" and "Run Folders"): the operator's words, what the test is run to, and whether the record holds the inputs and the drive as streams. None of them changes how the run drives |
 | `metadata` | the default fields | Random's |
+
+A configuration that gives `capture` is refused `bad_params` at `config.capture`: every SRS shock
+run is recorded in its run folder (see "Run Folders"), and the module has no capture of its own.
 
 The control channel is the table's first enabled `control` row; the drive is its first enabled
 `drive` row. A monitor and a limit channel are named to the controller by their row's
@@ -2623,7 +2633,8 @@ than one enabled drive row, as in Classical Shock), `law_unknown`,
 ### Running an SRS Shock Test
 
 - **`srs.arm`** checks feasibility (when given) on the synthesized pulse, opens the station, adopts
-  its rate, derives the grid at that rate and passes the arm gate. Nothing is driven. Refusals as
+  its rate, derives the grid at that rate, passes the arm gate and claims the run's folder (see
+  "Run Folders"; refused `record_unwritable` when it cannot be written). Nothing is driven. Refusals as
   `shock.arm`'s: `feasibility_exceeded` (the state becomes `blocked`; a non-empty `override_ack`
   arms past it), `override_not_needed`, `law_not_checked` on a hardware station, and the
   station's own.
@@ -2673,7 +2684,8 @@ the pulses that passed (`passed` in their rows). `identification` is null until 
 done, then the excitation, the burst's peak and its cap (volts), and its mean in-band coherence
 against the hold. `notch` is null without limit channels, then the arm-time notch: the bands it
 notched, the worst predicted exceedance before and after it (dB over the allowed level) and
-whether its fit converged.
+whether its fit converged. `record` is absent until the run arms, then Random's
+`{"folder","streams","problem"}`.
 
 | `outcome` | How the run ended |
 |---|---|
@@ -4426,7 +4438,8 @@ parameter for a wrong shape (`reference.sha256` that is not 64 lowercase hexadec
            "envelope_debounce_samples":8,"divergence_plays":3,"divergence_rise_frac":0.1},
  "feasibility":{"peak_accel":null,"peak_velocity_ips":null,"disp_pkpk_in":1.0,
                 "kinematics_hp_hz":5},
- "capture":{"auto_start":false,"run_name":"twr_run"},
+ "operator":"Operator","article":"Bracket","notes":"",
+ "specification":{"document":"Example procedure","clause":"4.2"},"record":{"streams":true},
  "metadata":[{"key":"run_number","label":"Run Number","value":"7"}]}
 ```
 
@@ -4476,8 +4489,11 @@ parameter for a wrong shape (`reference.sha256` that is not 64 lowercase hexadec
 | `limits.divergence_plays`, `divergence_rise_frac` | 3, 0.1 | Correction plays in a row at one level, above the gate, each with its error up more than this fraction of the last, that end the run (`aborted`, `divergence`) |
 | `feasibility.peak_accel`, `peak_velocity_ips`, `disp_pkpk_in` | null | Ceilings on the prepared section's kinematics at full level (control unit, in/s, in pk-pk). Over any, arming is blocked until acknowledged (`feasibility_exceeded`); null for none |
 | `feasibility.kinematics_hp_hz` | 5 | The high-pass the kinematics are integrated after, Hz |
-| `capture` | as shown | `auto_start` starts the recording after the identification and any review hold, before the first play, in the run folder `run_name` (default `twr_run`) under the local data root, or the first free `<run_name>-<n>` when that name is taken. It holds the control channel's response to each play, one play after another at the station rate (`telemetry.f32`, with `capture.json`: the player's channel table, the rate and the configuration, the reference described in place of its samples); the identification, the pads between plays, a play cut short and the drive are not recorded. The reference is written once beside it (`reference.bin`, little-endian `f64` samples as imported, described by `reference.json`), and the law's records with it: `law.json` once, and `law_calls.bin` (each call's returned drive, `f32`) with its index `law_calls.jsonl`. The law is called after an iteration play that misses its gate, and after a playback play only with `adaptation.during_playback` on. With `auto_start` false nothing is written to disk. Either way `twr.record` answers from the service's memory, for the last eight plays |
+| `operator`, `article`, `notes`, `specification`, `record` | empty, null, `{"streams":true}` | The run's record, as Random's (see "Random Test Configuration" and "Run Folders"): the operator's words, what the test is run to, and whether the record holds the inputs and the drive as streams. None of them changes how the run drives. Every TWR run is recorded in its run folder (`docs/run-folder.md`, "What a TWR Run Saves"): the reference as imported, its target at full level, the identification, each play's shot of every enabled input and of the drive with the play's results as it is judged (the play the run ends on, and one cut short, included), and every call of the law with the drive it returned. `twr.record` answers from the service's memory, for the last eight plays |
 | `metadata` | as shown | Random's |
+
+A configuration that gives `capture` is refused `bad_params` at `config.capture`: every TWR run is
+recorded in its run folder (see "Run Folders"), and the module has no capture of its own.
 
 The control channel is the table's first enabled `control` row; the drive is its first enabled
 `drive` row. A configuration whose shape is wrong is refused `bad_params` naming the field. Its
@@ -4517,7 +4533,9 @@ warnings `reference_resampled`.
   programs is adopted and its arm gate passed. Nothing is driven. A station that programs another
   rate than the record's is refused `arm_refused` (the message names both rates), as is one the
   driver cannot open; the run's state is unchanged. The station's other refusals are Random's. The
-  armed `grid` (`actual` true) is the station's rate and the record at it.
+  run's folder is claimed then (see "Run Folders"; refused `record_unwritable` when it cannot be
+  written, and nothing is armed). The armed `grid` (`actual` true) is the station's rate and the
+  record at it.
 - **`twr.start`** from `configured` arms first. It runs identification (`phase` `sysid`): the
   excitation at `drive_vrms`, measuring the plant and its coherence on the identification grid,
   and the response's lag behind the drive by cross-correlation. A mean in-band coherence under
@@ -4640,6 +4658,7 @@ clock. The safe stop's countdown (`orphan_s`) is the only number timed by the se
   "frames_done","trip"}`: `at_s` station time, `play` the play it ended at (the last judged, or
   the one a stop or an abort cancelled; null before any), `frames_done` the frames of that play
   the station had taken when a stop or an abort cancelled it (null otherwise).
+- `record` is absent until the run arms, then Random's `{"folder","streams","problem"}`.
 
 | `outcome` | How the run ended |
 |---|---|

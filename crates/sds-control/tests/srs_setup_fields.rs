@@ -464,15 +464,41 @@ fn every_wire_field_reaches_the_controllers_configuration() {
             json!("Other shaker"),
         ),
         (
-            "capture.auto_start",
-            json!(true),
-            |k, _| json!(k.capture.trigger == ShockCaptureTrigger::EveryPulse),
-            json!(true),
+            "operator",
+            json!("Tester"),
+            |k, _| json!(meta(k, "operator")),
+            json!("Tester"),
+        ),
+        (
+            "article",
+            json!("Housing"),
+            |k, _| json!(meta(k, "test_article")),
+            json!("Housing"),
+        ),
+        (
+            "notes",
+            json!("bolted at four corners"),
+            |k, _| json!(meta(k, "notes")),
+            json!("bolted at four corners"),
+        ),
+        (
+            "specification",
+            json!({"document": "Procedure", "clause": "2.3"}),
+            |k, _| json!([meta(k, "specification"), meta(k, "clause")]),
+            json!(["Procedure", "2.3"]),
         ),
         (
             "metadata",
             json!([{"key": "run_number", "label": "Run Number", "value": "12"}]),
-            |k, _| json!([k.metadata.len(), k.metadata[0].value]),
+            // the run record's words (the specification here) are added after the fields given
+            |k, _| {
+                let given: Vec<_> = k
+                    .metadata
+                    .iter()
+                    .filter(|m| !matches!(m.key.as_str(), "notes" | "specification" | "clause"))
+                    .collect();
+                json!([given.len(), given[0].value])
+            },
             json!([1, "12"]),
         ),
     ];
@@ -492,13 +518,43 @@ fn every_wire_field_reaches_the_controllers_configuration() {
     }
 }
 
+fn meta(k: &SrsTestConfig, key: &str) -> Option<String> {
+    k.metadata
+        .iter()
+        .find(|m| m.key == key)
+        .map(|m| m.value.clone())
+}
+
+/// One way to record: a configuration that still asks for the module's own
+/// capture (a run name or a start at arm) is refused at the field, and the
+/// controller's capture never starts, whatever the configuration. Red if
+/// `capture` were taken again, or if the controller were handed a capture that
+/// starts.
 #[test]
-#[ignore = "needs the SRS core: a run name for the capture folder (capture.run_name)"]
-fn the_capture_run_name_reaches_the_controllers_configuration() {
-    let w = parse_with("capture.run_name", json!("bracket_x"));
+fn an_srs_capture_is_refused_and_the_controllers_capture_stays_off() {
+    for capture in [
+        json!({"auto_start": true}),
+        json!({"run_name": "bracket_x"}),
+    ] {
+        let mut c = golden_config();
+        c["capture"] = capture;
+        let e = config::parse(&c).expect_err("a capture is refused");
+        assert_eq!(e.reason, Some("bad_params"), "{}", e.message);
+        assert_eq!(
+            e.detail.as_deref().map(|d| d["param"].clone()),
+            Some(json!("config.capture")),
+            "{}",
+            e.message
+        );
+    }
+    let mut c = golden_config();
+    c.as_object_mut().unwrap().remove("capture");
+    c["record"] = json!({"streams": false});
+    let w = config::parse(&c).unwrap();
+    assert!(!w.record_streams);
     let k = built(&w);
-    let text = serde_json::to_string(&k.capture).unwrap();
-    assert!(text.contains("bracket_x"), "{text}");
+    assert_eq!(k.capture.trigger, ShockCaptureTrigger::Off);
+    assert!(!k.capture.snapshot_on_stop);
 }
 
 fn errors_of(c: &Value) -> Vec<(String, String)> {

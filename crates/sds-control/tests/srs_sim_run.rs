@@ -150,57 +150,56 @@ async fn auto_with_the_default_law_completes_inside_the_band() {
     }
 }
 
-/// With the capture switch on, a service built as the program builds it (a data
-/// root and no capture root) records the run under its data root, at the
-/// station's rate.
+/// A service built as the program builds it (a data root and no records root)
+/// records every run in its run folder under its data root, at the station's
+/// rate, a shot for the identification and one for every pulse. (Before the run
+/// record, this was the module's own capture, switched on in the setup.)
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
-async fn capture_on_records_under_the_data_root_at_the_station_rate() {
+async fn an_srs_run_records_under_the_data_root_at_the_station_rate() {
     let mut o = real(Duration::from_secs(30));
     o.capture_root = None;
     let root = o.data_root.clone();
     let addr = serve(Service::with_options(o)).await;
     let mut c = Client::connect(addr).await;
     controller(&mut c).await;
-    let mut cfg = config("auto");
-    cfg["capture"] = json!({"auto_start": true});
-    let id = run_id(&mut c, cfg).await;
+    let id = run_id(&mut c, config("auto")).await;
     c.ok("srs.start", json!({})).await;
     let end = wait_end(&mut c, &id).await;
     assert_eq!(end["end"]["outcome"], "completed", "{end}");
     let n = rows(&mut c).await.len();
-    // The SRS core names its folder for the time it armed (`srs_run_<unix secs>`).
-    let dirs: Vec<PathBuf> = std::fs::read_dir(&root)
-        .unwrap()
-        .filter_map(|e| e.ok().map(|e| e.path()))
-        .filter(|p| p.join("capture.json").exists())
-        .collect();
+    let folder = PathBuf::from(end["record"]["folder"].as_str().unwrap());
     assert_eq!(
-        dirs.len(),
-        1,
-        "one run folder under the data root: {dirs:?}"
-    );
-    let dir = &dirs[0];
-    let side: Value =
-        serde_json::from_slice(&std::fs::read(dir.join("capture.json")).expect("a sidecar"))
-            .unwrap();
-    assert_eq!(side["complete"], true);
-    assert_eq!(
-        side["config"]["sample_rate_hz"], 20480.0,
+        folder.parent(),
+        Some(root.as_path()),
         "{}",
-        side["config"]
+        folder.display()
     );
-    assert_eq!(side["config"]["decimation"], 1);
-    // Every pulse's record, one sample a frame.
-    assert_eq!(side["chunks_written"], n as u64);
-    let frames = side["frames_written"].as_u64().unwrap();
-    let bytes = std::fs::metadata(dir.join("telemetry.f32")).unwrap().len();
-    assert_eq!(bytes, frames * 4);
-    assert!(dir.join("law.json").exists());
+    let t0 = Instant::now();
+    while !folder.join("end.json").is_file() {
+        assert!(
+            t0.elapsed() < Duration::from_secs(60),
+            "the record did not end"
+        );
+        std::thread::sleep(Duration::from_millis(20));
+    }
+    let side: Value = serde_json::from_slice(
+        &std::fs::read(folder.join("streams/inputs/stream.json")).expect("a stream"),
+    )
+    .unwrap();
+    assert_eq!(side["fs_hz"], 20480.0, "{side}");
+    let shots = side["shots"].as_array().unwrap();
+    assert_eq!(shots.len(), n + 1, "{side}");
+    assert_eq!(shots[0]["what"], "identification");
+    let frames = side["frames"].as_u64().unwrap();
+    let width = side["channels"].as_array().unwrap().len() as u64;
+    let bytes = std::fs::metadata(folder.join("streams/inputs/telemetry.f32"))
+        .unwrap()
+        .len();
+    assert_eq!(bytes, frames * width * 4);
+    assert!(folder.join("law/law.json").exists());
     let _ = std::fs::remove_dir_all(&root);
 }
 
-/// srs-2: MANUAL fire within ±1 dB of the table, go to a rung, an early fire
-/// refused `not_yet`, then Stop with no pulse after.
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn manual_moves_and_an_early_fire_then_the_stop() {
     let addr = serve(Service::with_options(real(Duration::from_secs(30)))).await;

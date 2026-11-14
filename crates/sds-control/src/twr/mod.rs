@@ -6,6 +6,7 @@
 pub mod config;
 pub mod engine;
 pub mod law_check;
+pub mod record;
 pub mod reference;
 pub mod run;
 pub mod sim;

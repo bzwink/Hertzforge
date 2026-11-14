@@ -15,7 +15,7 @@
 import { regresses } from '../runOrder';
 import { untrack } from 'svelte';
 import type { ServiceClient } from '$lib/protocol/client.svelte';
-import type { ChannelRow, LogEntry, View } from '$lib/protocol/types';
+import type { ChannelRow, LogEntry, RunRecordRef, View } from '$lib/protocol/types';
 import type { LawEntry, LawsListResult } from '$lib/protocol/mimo';
 import {
 	TWR_TOPICS,
@@ -420,8 +420,24 @@ export class TwrStore {
 			level_db: s.level_db,
 			at_level_s: null,
 			remaining_at_level_s: null,
-			end: s.end as unknown as RunHead['end']
+			end: s.end as unknown as RunHead['end'],
+			record: s.record ?? null
 		};
+	}
+
+	/** The channels the run's streams would hold: every enabled input and the drive. */
+	get recordChannels(): number {
+		return this.rows.filter((r) => r.enabled).length;
+	}
+
+	/** The sample rate the run asks for (the reference's own when none is given), for the size its streams take. */
+	get recordRateHz(): number {
+		return this.setup.acquisition.fs_hz ?? this.setup.facts?.fs_hz ?? Number.NaN;
+	}
+
+	/** The run's record, from arm on: its folder, whether it keeps the time histories, its problem. */
+	get runRecord(): RunRecordRef | null {
+		return this.status?.record ?? null;
 	}
 
 	/** TWR sends no level the drive ramps through; the bar reads the state's commanded level. */

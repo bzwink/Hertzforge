@@ -118,7 +118,8 @@ def test_a_configuration_carries_every_field_and_the_drive_limits_are_required(v
     config = _text('request_srs_configure')['params']['config']
     assert set(config) == {'title', 'target', 'bands', 'synthesis', 'envelope', 'acquisition',
                            'schedule', 'spacing', 'identification', 'control', 'limits',
-                           'limit_channels', 'feasibility', 'capture', 'metadata'}
+                           'limit_channels', 'feasibility', 'operator', 'article', 'notes',
+                           'specification', 'record', 'metadata'}
     for missing in ('drive_vpk_ceiling', 'drive_vpk_abort'):
         bad = copy.deepcopy(config)
         del bad['limits'][missing]

@@ -17,7 +17,7 @@
  * something to draw. Nothing here is the service's synthesis or SRS math.
  */
 
-import type { LogEntry, LogKind, ReadingRow, RefusalReason, Series, SpectrumView, StationRef, DataSource, TableView, View } from '../types';
+import type { LogEntry, LogKind, ReadingRow, RefusalReason, RunRecordRef, Series, SpectrumView, StationRef, DataSource, TableView, View } from '../types';
 import type { LawEntry } from '../mimo';
 import type { ShockLevelParams } from '../shock';
 import type {
@@ -331,6 +331,8 @@ interface Run {
 	alarm: boolean;
 	timer: ReturnType<typeof setInterval> | null;
 	law: LawEntry;
+	/** The run's record, from arm on. */
+	record: RunRecordRef | null;
 }
 
 export interface SrsMock {
@@ -426,7 +428,8 @@ export function createSrsMock(host: SrsMockHost): SrsMock {
 			last_pulse: r.rows.at(-1) ?? null,
 			law: { id: r.law.id, name: r.law.name, version: r.law.version, sha256: r.law.sha256, misses: 0 },
 			feasibility: r.feasibility,
-			end: r.end
+			end: r.end,
+			...(r.record ? { record: { ...r.record } } : {})
 		};
 	}
 
@@ -628,7 +631,8 @@ export function createSrsMock(host: SrsMockHost): SrsMock {
 			end: null,
 			alarm: false,
 			timer: null,
-			law
+			law,
+			record: null
 		};
 	}
 
@@ -651,6 +655,19 @@ export function createSrsMock(host: SrsMockHost): SrsMock {
 		}, LIVE_MS);
 	}
 
+	/** Claim the run's folder at arm, or refuse the arm as the service does when it cannot be written. */
+	function claimRecord(r: Run) {
+		if (r.record) return;
+		const folder = host.recordFolder?.(r.id) ?? `~/Hertzforge_Data/${r.id}`;
+		if (host.record === 'unwritable') {
+			const reason = 'Permission denied';
+			refuse('refused', 'record_unwritable', `The run's record could not be written, so the run did not arm: ${folder} (${reason}). Choose a data folder that can be written.`, { path: folder, reason });
+		}
+		const streams = r.config.record?.streams === false ? 'off' : 'on';
+		r.record = { folder, streams, problem: null };
+		if (streams === 'off') addLog('record', "the run's streams are not recorded: switched off in the setup");
+	}
+
 	function arm(r: Run, ack: string | undefined) {
 		if (r.config.feasibility && host.feasibilityExceeds && !ack) {
 			r.feasibility = { verdict: 'exceeded', message: "The pulse's displacement exceeds the shaker's stroke." };
@@ -658,6 +675,7 @@ export function createSrsMock(host: SrsMockHost): SrsMock {
 			addLog('feasibility', 'feasibility exceeded; arming needs an acknowledgement');
 			refuse('refused', 'feasibility_exceeded', "The pulse's displacement exceeds the shaker's stroke; arm with an acknowledgement to go on.", { verdict: 'exceeded' });
 		}
+		claimRecord(r);
 		if (ack) addLog('override', `armed past feasibility: "${ack}"`);
 		r.feasibility = r.derived.feasibility;
 		r.derived = { ...r.derived, grid: { ...r.derived.grid, actual: true } };
@@ -766,6 +784,11 @@ export function createSrsMock(host: SrsMockHost): SrsMock {
 			law: { used: true, miss: null, call_ms: 0.2 }
 		};
 		r.rows.push(row);
+		if (host.record === 'problem' && r.record && r.record.streams === 'on' && r.record.problem === null && r.rows.length >= 2) {
+			const problem = `Recording of the inputs stream stopped: a write failed: No space left on device (os error 28). The run goes on.`;
+			r.record = { ...r.record, problem };
+			addLog('record', problem);
+		}
 		r.firedAtLevel += 1;
 		if (passed) r.passedAtLevel += 1;
 		r.failsInRow = passed ? 0 : r.failsInRow + 1;
@@ -1120,6 +1143,7 @@ export function createSrsMock(host: SrsMockHost): SrsMock {
 			'srs.configure': (params, conn) => {
 				if (!isObject(params.config)) bad('config', 'Configuring needs a test configuration.');
 				shapeOk(params.config as Record<string, unknown>);
+				if ((params.config as Record<string, unknown>).capture != null) bad('config.capture', 'An SRS shock run is always recorded in its run folder; "capture" is no longer taken. Use "record" to keep or leave out the streams.');
 				const config = params.config as unknown as SrsConfig;
 				const checked = check(config);
 				if (params.dry_run === true) return { errors: checked.errors, warnings: checked.warnings, derived: checked.derived, views: checked.views };

@@ -1,0 +1,31 @@
+{"seq":0,"at_unix":1794240000.25,"frame":null,"kind":"state","text":"configured \"Golden TWR\" on sim"}
+{"seq":1,"at_unix":1794240001.25,"frame":null,"kind":"state","text":"idle to armed","data":{"from":"idle","to":"armed","state":"armed"}}
+{"seq":2,"at_unix":1794240002.25,"frame":null,"kind":"station","text":"armed on sim at 2048 Hz, records of 256 samples","data":{"class":"sim","fs_hz":2048,"record_len":256,"section_start":32,"section_len":160}}
+{"seq":3,"at_unix":1794240003.25,"frame":null,"kind":"state","text":"armed to sysid","data":{"from":"armed","to":"sysid","state":"running"}}
+{"seq":4,"at_unix":1794240004.25,"frame":null,"kind":"note","text":"started; identification at 0.1 V rms for 0.5 s","data":{"action":"start","drive_vrms":0.1,"duration_s":0.5}}
+{"seq":5,"at_unix":1794240005.25,"frame":2048,"kind":"note","text":"sysid complete: in-band mean coherence 0.997, mask covers 99.7% of target energy; holding for review"}
+{"seq":6,"at_unix":1794240006.25,"frame":2048,"kind":"note","text":"control law frequency-domain correction seeded; iterating at -6 dB"}
+{"seq":7,"at_unix":1794240007.25,"frame":2048,"kind":"state","text":"sysid to waiting","data":{"from":"sysid","to":"waiting","state":"running"}}
+{"seq":8,"at_unix":1794240008.25,"frame":2048,"kind":"note","text":"seeded; the drive in force peaks at 0.215 V at -6 dB","data":{"seeded":true,"drive_vpk":0.215,"level_db":-6}}
+{"seq":9,"at_unix":1794240009.25,"frame":2048,"kind":"state","text":"waiting to iterating","data":{"from":"waiting","to":"iterating","state":"running"}}
+{"seq":10,"at_unix":1794240010.25,"frame":3328,"kind":"note","text":"Play 0: 1280 frames committed before start."}
+{"seq":11,"at_unix":1794240011.25,"frame":3328,"kind":"play","text":"play 0 (iteration at -6 dB): 5.657 % rms error, above the gate","data":{"play":0,"kind":"iteration","level_db":-6,"iteration":1,"rms_error_pct":5.65652,"peak_error_pct":5.59162,"spectral_error_db":0.299756,"gated":false,"outcome":"judged","shot":1}}
+{"seq":12,"at_unix":1794240012.25,"frame":3328,"kind":"state","text":"iterating to waiting","data":{"from":"iterating","to":"waiting","state":"running"}}
+{"seq":13,"at_unix":1794240013.25,"frame":3328,"kind":"state","text":"waiting to iterating","data":{"from":"waiting","to":"iterating","state":"running"}}
+{"seq":14,"at_unix":1794240014.25,"frame":4608,"kind":"note","text":"level -6 dB converged in 2 iteration(s) at 4.97% rms error"}
+{"seq":15,"at_unix":1794240015.25,"frame":4608,"kind":"note","text":"level step +6.0 dB: the full-level drive in force plays x1.0000"}
+{"seq":16,"at_unix":1794240016.25,"frame":4608,"kind":"note","text":"Play 1: 1280 frames committed before start."}
+{"seq":17,"at_unix":1794240017.25,"frame":4608,"kind":"play","text":"play 1 (iteration at -6 dB): 4.972 % rms error, met the gate","data":{"play":1,"kind":"iteration","level_db":-6,"iteration":2,"rms_error_pct":4.9719,"peak_error_pct":4.56653,"spectral_error_db":0.222486,"gated":true,"outcome":"judged","shot":2}}
+{"seq":18,"at_unix":1794240018.25,"frame":4608,"kind":"state","text":"iterating to waiting","data":{"from":"iterating","to":"waiting","state":"running"}}
+{"seq":19,"at_unix":1794240019.25,"frame":4608,"kind":"state","text":"waiting to iterating","data":{"from":"waiting","to":"iterating","state":"running"}}
+{"seq":20,"at_unix":1794240020.25,"frame":5888,"kind":"note","text":"level 0 dB converged in 1 iteration(s) at 4.95% rms error"}
+{"seq":21,"at_unix":1794240021.25,"frame":5888,"kind":"note","text":"full level converged; starting the run schedule"}
+{"seq":22,"at_unix":1794240022.25,"frame":5888,"kind":"note","text":"Play 2: 1280 frames committed before start."}
+{"seq":23,"at_unix":1794240023.25,"frame":5888,"kind":"play","text":"play 2 (iteration at full level): 4.948 % rms error, met the gate","data":{"play":2,"kind":"iteration","level_db":0,"iteration":1,"rms_error_pct":4.94767,"peak_error_pct":4.48545,"spectral_error_db":0.169627,"gated":true,"outcome":"judged","shot":3}}
+{"seq":24,"at_unix":1794240024.25,"frame":5888,"kind":"state","text":"iterating to waiting","data":{"from":"iterating","to":"waiting","state":"running"}}
+{"seq":25,"at_unix":1794240025.25,"frame":5888,"kind":"state","text":"waiting to playing","data":{"from":"waiting","to":"playing","state":"running"}}
+{"seq":26,"at_unix":1794240026.25,"frame":7168,"kind":"note","text":"run schedule complete: 1 play(s) at 0 dB"}
+{"seq":27,"at_unix":1794240027.25,"frame":7168,"kind":"note","text":"Play 3: 1280 frames committed before start."}
+{"seq":28,"at_unix":1794240028.25,"frame":7168,"kind":"play","text":"play 3 (playback at full level): 4.97 % rms error, met the gate","data":{"play":3,"kind":"playback","level_db":0,"iteration":null,"rms_error_pct":4.96992,"peak_error_pct":4.51729,"spectral_error_db":0.175049,"gated":true,"outcome":"judged","shot":4}}
+{"seq":29,"at_unix":1794240029.25,"frame":7168,"kind":"state","text":"playing to stopped","data":{"from":"playing","to":"stopped","state":"finished"}}
+{"seq":30,"at_unix":1794240030.25,"frame":7168,"kind":"state","text":"ended (completed): The playback schedule finished: 1 play at full level.","data":{"outcome":"completed","by":null,"end":{"outcome":"completed","message":"The playback schedule finished: 1 play at full level.","at_s":3.5,"level_db":0,"play":3,"frames_done":null,"trip":null}}}

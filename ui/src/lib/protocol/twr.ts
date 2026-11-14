@@ -13,6 +13,7 @@ import type {
 	LogEntry,
 	RefusalReason,
 	ReportItem,
+	RunRecordRef,
 	StationRef,
 	View
 } from './types';
@@ -218,7 +219,12 @@ export interface TwrConfig {
 	adaptation?: TwrAdaptation;
 	limits: TwrLimits;
 	feasibility?: TwrFeasibility;
-	capture?: { auto_start: boolean; run_name: string };
+	/** The run's record, as Random's: the operator's words, what the test is run to, and whether the folder keeps the time histories. */
+	operator?: string;
+	article?: string;
+	notes?: string;
+	specification?: { document: string; clause: string } | null;
+	record?: { streams?: boolean } | null;
 	metadata?: { key: string; label: string; value: string }[];
 }
 
@@ -534,6 +540,8 @@ export interface TwrState {
 	law: TwrLawRef | null;
 	feasibility: FeasibilityVerdict | null;
 	end: TwrEnd | null;
+	/** The run's record, from arm on: its folder, whether it keeps the time histories, the latest problem. */
+	record?: RunRecordRef;
 }
 
 export interface TwrLogResult {
