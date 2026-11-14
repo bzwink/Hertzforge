@@ -5,8 +5,9 @@ control service while the run goes, that needs no other file and no running
 service to be read. The analysis side converts it into an ordinary project file
 (`hertzforge convert-run FOLDER`, or open the folder or its `run.json`), so a
 finished run reaches every analysis tool with its channel table, its setup, its
-log and its measurements. Today the Random, Sine and Classical Shock modules and
-the Recorder write one for every run; the other control modules do not yet.
+log and its measurements. Today the Random, MIMO Random, Sine and Classical Shock
+modules and the Recorder write one for every run; the other control modules do not
+yet.
 
 The exact form is the reader's, `hertzforge.io.run_folder`; the conversion is
 `hertzforge.io.run_convert`, described in `docs/hforge-format.md` ("Run Folders
@@ -339,6 +340,72 @@ sine_golden_run` from a short sweep on the simulator, with fixed seeds, its wall
 times, build fields and each law call's measured duration normalized, and its
 streams cut to their first 1024 frames (`cut_from_frames`): the identification's
 burst alone is 131 072 frames;
+`scripts/make_golden_runs.sh` rewrites it.
+
+## What a MIMO Random Run Saves
+
+From arm: `run.json` (with the operator's words, `specification` when one is named,
+and `recording`), `table.json`, `setup.json` (the setup as sent in `config`, which
+holds an inline reference whole; `resolved.reference`, where the reference came from
+(inline, or a reference file by its path and SHA-256), its size, its labels, its
+control space, its band as line indexes and in hertz and its line spacing;
+`resolved.channels`, the control channels with their bands, the drives with their
+ceilings, abort levels, peaks, shakers and moving masses, the limit channels;
+`resolved.space` with any transformations; `resolved.law`, `resolved.estimation`,
+`resolved.identification`, `resolved.control` (the loop and averaging settings, the
+caps, the law's budget and misses, the ramps, the soft start), `resolved.schedule`;
+`resolved.controller`, the controller's own settings; `resolved.setup_hash` and
+`resolved.seed`; and `derived`, the grid, the band and the snapshot cadence),
+`law/law.json` (the law's identity, the parameters as given, every parameter value
+the run holds in the manifest's order, and its guards; a law that is a file has its
+bytes beside it, named in `file`) and `log.jsonl` (the controller's events, its state
+changes, levels, alarms, overrides, law misses and trips, and the operator's stops and
+aborts, each as it is made), and these files, each checked against the golden run
+folder (`schema/golden/runs/mimo_random/`) by
+`tests/test_run_folder_golden_mimo_random.py`. Spectral results are on the band's
+lines (outside it nothing is driven or controlled), matrices in the file's convention
+(`conj(X) Y`), referred to full level:
+
+| File | What |
+|---|---|
+| `streams/inputs` | Every enabled input as read from the station, in table order (`kind` `inputs`), the noise floor and the identification included |
+| `streams/drives` | Every drive as the device accepted it, in volts (`kind` `drives`), the identification's noise included |
+| `results/reference` | The reference spectral density matrix in the control space, with each controlled quantity's alarm and abort lines as spectral densities (`kind` `sdm_reference`) |
+| `results/identification_frf` | The identification's transfer function matrix, each drive to each control and limit channel, the response taken the lag it measured later (`kind` `frf`) |
+| `results/identification_coherence` | Each controlled quantity's multiple coherence with the drives (`kind` `coherence`) |
+| `results/identification_response` | The control channels' spectral matrix while the drives played (`kind` `cpsd`) |
+| `results/identification_noise` | The control channels' spectral matrix with the drives off, the noise floor (`kind` `cpsd`) |
+| `results/identification_drive` | The drives' spectral matrix (`kind` `cpsd`) |
+| `results/identification_cross` | Each control and limit channel's cross spectrum with each drive (`kind` `cpsd`) |
+| `results/identification` | The transfer function's condition number per line and the rms each drive played, with the setup hash, the level, the frames, the steps, the lag and whether the set was loaded (`kind` `mimo_identification`) |
+| `results/drive_spectra` | Each loop: every drive's spectral density in force; its record line is the loop's summary (level, state, errors, drive rms, what the guards did, timing, misses in a row) (`kind` `psd`) |
+| `results/control_spectra` | Each loop that judged the response: every controlled quantity's spectral density and its error against the reference, dB (`kind` `psd`) |
+| `results/control_sdm` | The controlled quantities' full spectral matrix at the first loop at full level, every 30 s of loops and at the last loop at full level (`kind` `cpsd`) |
+| `results/drive_sdm` | The drives' full spectral matrix at the same loops (`kind` `cpsd`) |
+| `results/law_calls` | Every call of the control law, in its own space: the response, transfer function and multiple coherence it was given, the drive in force, the cross spectrum when the law takes it, and the drive it returned (Hermitian matrices packed by their upper triangle); the record line says seed or iterate, the loop, the outcome, a miss's words and the law's declared values (`kind` `mimo_law_calls`) |
+| `end.json` | The end, as the run's state reports it, with what the record counted (loops, law calls, the snapshots' loops) and the report: each controlled quantity's rms, its reference's and its error, each drive's rms and smallest cap, the gates and the overrides |
+
+A run whose controls were taken out of control at the gate adds
+`results/reference_after_exclusion`, the reference reduced to the controls kept. A run
+that ends before identification has no identification; one that ends before it
+engages has no loops and no law calls but its prediction's seed. With `record.streams`
+false there is no `streams/` folder.
+
+On the analysis side the reference becomes a `Specification` with a record for each
+autospectrum and each cross term above the diagonal, the controlled channels' alarm and
+abort lines as the warning and abort limits of their autospectra; the transfer function
+matrix an `Frf`; the multiple coherence a `MultipleCoherence`; each spectral matrix and
+cross spectrum, each loop's spectra and the snapshots a `Psd` with cross terms, a record
+per loop; all in SI, opened in the Random Vibration workspace. The condition numbers,
+the drives' rms, each loop's errors and the law's calls stay in the run record as named
+arrays. Under virtual control the controlled quantities are degrees of freedom, not
+channels of the table, so the reference, the coherence and the controlled spectra stay
+as arrays, and the conversion says so.
+
+The golden folder is written by `cargo test -p sds-control --test
+mimo_random_golden_run` from a short run on the simulator's 4 by 4 plant, with fixed
+seeds, its wall times, build fields and each loop's measured durations normalized, and
+its streams cut to their first 128 frames (`cut_from_frames`);
 `scripts/make_golden_runs.sh` rewrites it.
 
 ## What a Recorder Run Saves
