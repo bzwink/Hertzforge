@@ -1,0 +1,4 @@
+{"index":0,"kind":"iteration","level_db":-6,"iteration":1,"gated":false,"outcome":"judged","trip":null,"frames_done":null,"shot":1,"frame":3328}
+{"index":1,"kind":"iteration","level_db":-6,"iteration":2,"gated":true,"outcome":"judged","trip":null,"frames_done":null,"shot":2,"frame":4608}
+{"index":2,"kind":"iteration","level_db":0,"iteration":1,"gated":true,"outcome":"judged","trip":null,"frames_done":null,"shot":3,"frame":5888}
+{"index":3,"kind":"playback","level_db":0,"iteration":null,"gated":true,"outcome":"judged","trip":null,"frames_done":null,"shot":4,"frame":7168}

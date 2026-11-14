@@ -1,0 +1,105 @@
+{
+  "name": "law_calls",
+  "kind": "law_calls",
+  "abscissa": {
+    "kind": "time",
+    "unit": "s",
+    "start": -0.015625,
+    "step": 0.00048828125
+  },
+  "channels": {},
+  "description": "every call of the control law: the drive it returned at full level, on the record's samples, and what it was handed",
+  "records": {
+    "index": "the call, from 0",
+    "after_plays": "the plays before it (0 at the seed)",
+    "call": "seed or iterate",
+    "kind": "the kind of the play it followed",
+    "used": "whether its drive was used",
+    "miss": "why not",
+    "values": "the values the law reported",
+    "frame": "the station frame when it was kept"
+  },
+  "arrays": [
+    {
+      "name": "drive",
+      "dtype": "f8",
+      "shape": [
+        256
+      ],
+      "unit": "V",
+      "offset": 0
+    },
+    {
+      "name": "level_db",
+      "dtype": "f8",
+      "shape": [
+        1
+      ],
+      "unit": "dB",
+      "offset": 2048
+    },
+    {
+      "name": "rms_error",
+      "dtype": "f8",
+      "shape": [
+        1
+      ],
+      "unit": "%",
+      "offset": 2056
+    },
+    {
+      "name": "peak_rise",
+      "dtype": "f8",
+      "shape": [
+        1
+      ],
+      "unit": "dB",
+      "offset": 2064
+    },
+    {
+      "name": "bin_rise",
+      "dtype": "f8",
+      "shape": [
+        1
+      ],
+      "unit": "dB",
+      "offset": 2072
+    },
+    {
+      "name": "predicted_peak_ratio",
+      "dtype": "f8",
+      "shape": [
+        1
+      ],
+      "unit": "",
+      "offset": 2080
+    },
+    {
+      "name": "lag",
+      "dtype": "f8",
+      "shape": [
+        1
+      ],
+      "unit": "frames",
+      "offset": 2088
+    },
+    {
+      "name": "used",
+      "dtype": "f8",
+      "shape": [
+        1
+      ],
+      "unit": "",
+      "offset": 2096
+    },
+    {
+      "name": "call_ms",
+      "dtype": "f8",
+      "shape": [
+        1
+      ],
+      "unit": "ms",
+      "offset": 2104
+    }
+  ]
+}

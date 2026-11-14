@@ -241,9 +241,15 @@ pub struct WireTwr {
     pub envelope_debounce_samples: u64,
     pub divergence_plays: u64,
     pub divergence_rise_frac: f64,
-    pub capture_auto_start: bool,
-    pub run_name: String,
     pub metadata: Vec<MetaField>,
+    /// The operator's words for the run's record: who ran it, on what, and notes.
+    pub operator: String,
+    pub article: String,
+    pub notes: String,
+    /// What the test is run to: the document and its clause.
+    pub specification: Option<(String, String)>,
+    /// Whether the record holds the inputs and the drive as streams.
+    pub record_streams: bool,
     /// The configuration as sent, for `twr.config` and `twr.reset`.
     pub raw: Value,
 }
@@ -754,13 +760,34 @@ pub fn parse(config: &Value) -> Result<WireTwr, MethodError> {
     let divergence_plays = count(&lim, "divergence_plays", tl.divergence_n as u64)?;
     let divergence_rise_frac = lim.f64_or("divergence_rise_frac", tl.divergence_tol_frac)?;
 
-    let cd = CaptureRules::default();
-    let (capture_auto_start, run_name) = match c.opt_obj("capture")? {
-        None => (cd.auto_start, cd.run_name),
-        Some(o) => (
-            o.opt_bool("auto_start")?.unwrap_or(cd.auto_start),
-            o.opt_str("run_name")?.map_or(cd.run_name, str::to_owned),
-        ),
+    // Every run is recorded in its run folder (`record`); the module's own
+    // capture is gone, and a configuration that still asks for it is told so
+    // rather than left to believe it is capturing.
+    if !matches!(c.m.get("capture"), None | Some(Value::Null)) {
+        return Err(bad(
+            "config.capture",
+            "A TWR run is always recorded in its run folder; \"capture\" is no longer taken. \
+             Use \"record\" to keep or leave out the streams.",
+        ));
+    }
+    let words =
+        |k: &str| -> Result<String, MethodError> { Ok(c.opt_str(k)?.unwrap_or("").to_owned()) };
+    let (operator, article, notes) = (words("operator")?, words("article")?, words("notes")?);
+    let specification = match c.m.get("specification") {
+        None | Some(Value::Null) => None,
+        Some(v) => {
+            let o = Obj::of(v, "config.specification")?;
+            Some((
+                o.opt_str("document")?.unwrap_or("").to_owned(),
+                o.opt_str("clause")?.unwrap_or("").to_owned(),
+            ))
+        }
+    };
+    let record_streams = match c.m.get("record") {
+        None | Some(Value::Null) => true,
+        Some(v) => Obj::of(v, "config.record")?
+            .opt_bool("streams")?
+            .unwrap_or(true),
     };
 
     let metadata = match c.array("metadata")? {
@@ -821,11 +848,22 @@ pub fn parse(config: &Value) -> Result<WireTwr, MethodError> {
         envelope_debounce_samples,
         divergence_plays,
         divergence_rise_frac,
-        capture_auto_start,
-        run_name,
         metadata,
+        operator,
+        article,
+        notes,
+        specification,
+        record_streams,
         raw: config.clone(),
     })
+}
+
+fn meta(key: &str, label: &str, value: &str) -> MetaField {
+    MetaField {
+        key: key.into(),
+        label: label.into(),
+        value: value.into(),
+    }
 }
 
 /// The core's own metadata set: Run Number, Test Article, SN, Operator, empty.
@@ -889,7 +927,6 @@ pub fn field_words(field: &str) -> String {
         ("feasibility", "peak_velocity_ips") => "The peak velocity ceiling",
         ("feasibility", "disp_pkpk_in") => "The displacement ceiling",
         ("feasibility", "kinematics_hp_hz") => "The kinematics high-pass",
-        ("capture", "run_name") => "The run folder's name",
         _ => return format!("\"{field}\""),
     };
     words.to_owned()
@@ -1200,6 +1237,28 @@ impl WireTwr {
         self.sysid_duration_s
     }
 
+    /// The metadata the controller's configuration carries: the configuration's
+    /// own, with the operator's words for the record written into it, so the
+    /// controller's report carries them too.
+    pub fn record_metadata(&self) -> Vec<MetaField> {
+        let mut out = self.metadata.clone();
+        for field in out.iter_mut() {
+            match field.key.as_str() {
+                "operator" if !self.operator.is_empty() => field.value = self.operator.clone(),
+                "test_article" if !self.article.is_empty() => field.value = self.article.clone(),
+                _ => {}
+            }
+        }
+        if !self.notes.is_empty() {
+            out.push(meta("notes", "Notes", &self.notes));
+        }
+        if let Some((document, clause)) = &self.specification {
+            out.push(meta("specification", "Specification", document));
+            out.push(meta("clause", "Clause", clause));
+        }
+        out
+    }
+
     /// The controller's configuration, every field supplied (no `..`: a field added
     /// to `TwrConfig` stops this compiling until it is given a meaning here). The
     /// reference is the stored record, raw: the core prepares it. For the built-in
@@ -1261,11 +1320,13 @@ impl WireTwr {
             limits: self.limits(),
             kinematics_hp_hz: self.shape.feasibility.kinematics_hp_hz,
             review_after_sysid: self.review,
+            // The run's record is the one way a TWR run records: the
+            // controller's own capture stays off.
             capture: CaptureRules {
-                auto_start: self.capture_auto_start,
-                run_name: self.run_name.clone(),
+                auto_start: false,
+                ..CaptureRules::default()
             },
-            metadata: self.metadata.clone(),
+            metadata: self.record_metadata(),
             control: Some(self.control()),
         }
     }
@@ -1337,7 +1398,6 @@ impl WireTwr {
         self.check_control(&mut r, facts.as_ref());
         self.check_schedule(&mut r);
         self.check_limits(&mut r);
-        self.check_capture(&mut r);
 
         // The table.
         if Self::control_row(ctx.table).is_none() {
@@ -1752,21 +1812,6 @@ impl WireTwr {
             self.divergence_rise_frac.is_finite() && self.divergence_rise_frac >= 0.0,
             "it is 0 or more.",
         );
-    }
-
-    fn check_capture(&self, r: &mut Report) {
-        let n = &self.run_name;
-        let plain = !n.is_empty() && !n.contains(['/', '\\', ':']) && n != "." && n != "..";
-        if !plain {
-            r.errors.push(Item::field(
-                "out_of_range",
-                "capture.run_name",
-                format!(
-                    "The run folder's name is \"{n}\"; it is a plain folder name, with no path in \
-                     it."
-                ),
-            ));
-        }
     }
 }
 

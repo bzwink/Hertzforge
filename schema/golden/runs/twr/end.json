@@ -1,0 +1,37 @@
+{
+  "run_uid": "golden-twr",
+  "end": {
+    "outcome": "completed",
+    "message": "The playback schedule finished: 1 play at full level.",
+    "at_s": 3.5,
+    "level_db": 0,
+    "play": 3,
+    "frames_done": null,
+    "trip": null
+  },
+  "at_unix": 1794240060.25,
+  "station_frames": 7168,
+  "summary": {
+    "plays": 4,
+    "playback_plays": 1,
+    "law_calls": 2,
+    "level_db": 0.0,
+    "t_s": 3.5
+  },
+  "streams": {
+    "inputs": {
+      "frames": 640,
+      "drops": 0,
+      "gaps": 0,
+      "fault": null,
+      "cut_from_frames": 7168
+    },
+    "drives": {
+      "frames": 640,
+      "drops": 0,
+      "gaps": 0,
+      "fault": null,
+      "cut_from_frames": 7168
+    }
+  }
+}
