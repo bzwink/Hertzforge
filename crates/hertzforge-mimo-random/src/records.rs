@@ -1,6 +1,15 @@
-//! The run's records (design 11, Q38).
+//! The run service's own records (design 11, Q38).
 //!
-//! On by default. A run's folder under the local data root holds:
+//! The control service does not use them: it turns them off and records every MIMO
+//! Random run in the shared run folder (`docs/run-folder.md`, "What a MIMO Random Run
+//! Saves"), taking each loop and law call from
+//! [`crate::MimoRandomService::keep_for_record`] and writing nothing on the loop's
+//! thread. They stay for a run made with the service directly (its own tests, and the
+//! [`crate::replay`] of a recorded law), and for the identification set's own files,
+//! which the control service writes and reads to save and load a set
+//! ([`write_identification`], [`read_identification`]).
+//!
+//! On by default for such a run. Its folder under the local data root holds:
 //!
 //! | File | What | Cadence |
 //! |---|---|---|
@@ -17,8 +26,8 @@
 //! Binary payloads are little-endian `f64`, complex values as `re, im` pairs,
 //! Hermitian stacks packed (upper triangle, row-major, line-major), matrix stacks
 //! row-major per line; each sidecar names the arrays, their shapes and their byte
-//! offsets. The conversion to the `.hforge` run file is the analysis service's
-//! (decision C, option 2).
+//! offsets. These records are not converted to a project file; a control service
+//! run's folder is.
 
 use crate::report::{GuardSummary, LawLine, LoopTiming, MimoReport, MimoState};
 use crate::service::IdentificationSet;

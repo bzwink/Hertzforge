@@ -42,4 +42,6 @@ pub use report::{
     GateReport, LawLine, MimoEvent, MimoEventKind, MimoFaultReason, MimoReport, MimoState,
     MimoStatus, MimoTripKind, MimoTripRecord, Prediction,
 };
-pub use service::{setup_hash_of, IdentificationSet, MimoError, MimoRandomService};
+pub use service::{
+    setup_hash_of, IdentificationSet, Kept, KeptLawCall, KeptLoop, MimoError, MimoRandomService,
+};

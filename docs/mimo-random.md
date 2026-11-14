@@ -487,29 +487,42 @@ the run ended and why.
 
 ## Records
 
-Every run writes a folder under the local data root (`Hertzforge_Data` in the home folder unless
-the data root is set elsewhere), from arm. The folder is named `mimo_random_`, the time the run
-armed in seconds and the run's seed; when that name is taken, the run gets the next free one. It
-holds:
+Every run, on the simulator or on hardware, writes its run folder under the local data root
+(`Hertzforge_Data` in the home folder unless the data root is set elsewhere) from arm, as every
+recorded module does (`docs/run-folder.md`). The folder is named for the time the run armed and its
+run id (`20261113-140000_mimo_random_m-0003`); a folder is never written over. The arm is refused
+(`record_unwritable`) when the record cannot be written. It holds:
 
-- the raw sample stream of every input, from which any loop's matrices can be recomputed; the
-  drives are not streamed,
-- the reference as the run used it, in the control space, with its band both as line indexes
-  (`band`, the first line and one past the last) and in hertz (`band_hz`, the first and last line),
-- the identification set: the FRF, the multiple coherences, the condition numbers, and the noise,
-  response and drive SDMs, with a hash of the setup they were measured on,
-- each loop's diagonal (every control's PSD and error, every drive's PSD) and summary (rms errors,
-  caps, gates, law diagnostics, timing),
-- full response and drive SDMs every 30 seconds,
-- the law record (name, version, file hash, every parameter value, and for an imported law the law
-  file itself) and every call made to the law, with the inputs it was handed and the drive it
+- the manifest, the channel table as armed and the setup as accepted and resolved: the reference
+  and where it came from (inline, or a reference file with its checksum), the control and drive
+  channels, the band, the loop and averaging settings, the limits and guards, the level schedule,
+  the setup hash and the seed,
+- the law: its identity, every parameter value, its guards, and for an imported law the law file
+  itself,
+- the log, each entry written as it is made, so the events survive a run that does not end
+  cleanly,
+- every enabled input as read and every drive as the device accepted it, the noise floor and the
+  identification included,
+- the reference as the run used it, in the control space, with each control's alarm and abort
+  lines,
+- the identification: the transfer function matrix, the multiple coherences, the condition
+  numbers, the noise, response and drive spectral matrices and the response-to-drive cross
+  spectrum, with the setup hash they were measured on,
+- each loop's drive spectra and summary (errors, drive rms, what the guards did, timing), and each
+  judged loop's control spectra and error against the reference,
+- the full control and drive spectral matrices at the first and last loop at full level and every
+  30 seconds,
+- every call made to the law, with the inputs that change from call to call and the drive it
   returned,
-- the report: the law, the identification summary, the gates and any override, each control's
-  final error, each drive's rms and smallest cap, and how the run ended.
+- how the run ended, with its report: the gates and any override, each control's final error, each
+  drive's rms and smallest cap.
 
-The run writes no `.hforge` file, and neither the control service nor the shell makes one. To
-make one from a run folder, call `hertzforge.io.mimo_run_convert.convert(folder, path)` from Python.
-A run that did not finish converts what it wrote, and the file says it is incomplete.
+Nothing is written on the thread that makes the drive: each loop's numbers are copied and handed to
+the record's own writer, so a slow disk never delays a loop. The screen shows the folder and any
+problem writing it, and opens the run in Analysis, where the folder converts into an ordinary
+project with its channel table, its specification and its results (`docs/run-folder.md`, "What a
+MIMO Random Run Saves"). A run that did not finish converts what it wrote, and says it is
+incomplete.
 
 ### Identification Reuse
 
@@ -523,9 +536,11 @@ messages of the control service's protocol (`schema/PROTOCOL.md`).
 
 ### Replay
 
-A recorded run can be replayed through its law: every recorded law call is fed again, in order,
-to the law as recorded (a built-in by its name and parameter values, or the law file kept in the
-run), and each drive it returns is compared with the recorded one. A replay that reproduces the
+The run service's own records (`hertzforge_mimo_random::records`, kept for a run made with the
+service directly, as its own tests make them, and for saving and loading an identification set) can
+be replayed through their law: every recorded law call is fed again, in order, to the law as
+recorded (a built-in by its name and parameter values, or the law file kept with it), and each
+drive it returns is compared with the recorded one. A replay that reproduces the
 run shows the law did what the record says; a replay with changed parameters shows what the change
 would have done to the same inputs. Replay is a function of the run service
 (`hertzforge_mimo_random::replay`).

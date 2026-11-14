@@ -184,6 +184,31 @@ pub struct Schedule {
     pub full_level_s: f64,
 }
 
+/// The operator's words for the run's record, and whether it keeps its streams.
+#[derive(Debug, Clone, PartialEq)]
+pub struct RecordWords {
+    /// Who ran it, on what, and notes.
+    pub operator: String,
+    pub article: String,
+    pub notes: String,
+    /// The test document and its clause, when one is named.
+    pub specification: Option<(String, String)>,
+    /// `false`: the record keeps no time histories (`record.streams`).
+    pub streams: bool,
+}
+
+impl Default for RecordWords {
+    fn default() -> Self {
+        RecordWords {
+            operator: String::new(),
+            article: String::new(),
+            notes: String::new(),
+            specification: None,
+            streams: true,
+        }
+    }
+}
+
 /// A setup as accepted: every default filled in.
 #[derive(Debug, Clone, PartialEq)]
 pub struct MimoSetup {
@@ -209,6 +234,8 @@ pub struct MimoSetup {
     /// `None`: the selected station. Otherwise the station kind the setup was made
     /// for, which must be the one selected.
     pub backend: Option<String>,
+    /// The operator's words for the run's record and its streams.
+    pub record: RecordWords,
     /// The setup as sent, for `mimo_random.status` readers and a reset.
     pub raw: Value,
 }
@@ -1207,6 +1234,36 @@ pub fn parse(setup: &Value, ctx: &SetupContext<'_>) -> Result<(MimoSetup, Report
         }
     };
 
+    // The run's record: the operator's words, and whether it keeps its streams.
+    let words = |k: &str| -> Result<String, MethodError> {
+        Ok(text(s, k, "setup")?.unwrap_or("").to_owned())
+    };
+    let specification = match opt(s, "specification") {
+        None => None,
+        Some(v) => {
+            let o = obj(v, "setup.specification")?;
+            Some((
+                text(o, "document", "setup.specification")?
+                    .unwrap_or("")
+                    .to_owned(),
+                text(o, "clause", "setup.specification")?
+                    .unwrap_or("")
+                    .to_owned(),
+            ))
+        }
+    };
+    let streams = match opt(s, "record") {
+        None => true,
+        Some(v) => boolean(obj(v, "setup.record")?, "streams", "setup.record")?.unwrap_or(true),
+    };
+    let record = RecordWords {
+        operator: words("operator")?,
+        article: words("article")?,
+        notes: words("notes")?,
+        specification,
+        streams,
+    };
+
     Ok((
         MimoSetup {
             title,
@@ -1223,6 +1280,7 @@ pub fn parse(setup: &Value, ctx: &SetupContext<'_>) -> Result<(MimoSetup, Report
             control,
             schedule,
             backend,
+            record,
             raw: setup.clone(),
         },
         report,
