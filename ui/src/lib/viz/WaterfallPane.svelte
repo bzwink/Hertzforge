@@ -52,7 +52,7 @@
 		WebGLRenderTarget,
 		type Material
 	} from 'three';
-	import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+	import { TrackballControls } from './trackball';
 	import type { ParamValues } from '$lib/forms/params';
 	import type { Role, WaterfallView } from '$lib/protocol/types';
 	import { cssVar, theme } from '$lib/theme/theme.svelte';
@@ -175,7 +175,7 @@
 	let renderer: WebGLRenderer | null = null;
 	let scene: Scene;
 	let camera: PerspectiveCamera;
-	let controls: OrbitControls;
+	let controls: TrackballControls;
 	let geometry: BufferGeometry;
 	let curves: LineSegments | Mesh;
 	const marks = new Map<MarkKind, Mesh>();
@@ -558,10 +558,7 @@
 		frameMaterial = new LineBasicMaterial({ transparent: true, opacity: 0.8 });
 		materials.push(frameMaterial);
 
-		controls = new OrbitControls(camera, renderer.domElement);
-		controls.enableDamping = true;
-		controls.dampingFactor = 0.12;
-		controls.rotateSpeed = 0.8;
+		controls = new TrackballControls(camera, renderer.domElement);
 		controls.zoomSpeed = 0.9;
 		controls.addEventListener('change', () => (dirty = true));
 

@@ -32,7 +32,7 @@
 		Vector3,
 		WebGLRenderer
 	} from 'three';
-	import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+	import { TrackballControls } from './trackball';
 	import type { MatrixView } from '$lib/protocol/types';
 	import { theme } from '$lib/theme/theme.svelte';
 	import { colormap, colormapGradient } from './colormap';
@@ -79,7 +79,7 @@
 	let renderer: WebGLRenderer | null = null;
 	let scene: Scene;
 	let camera: PerspectiveCamera;
-	let controls: OrbitControls;
+	let controls: TrackballControls;
 	let bars: InstancedMesh | null = null;
 	let barGeometry: BoxGeometry | null = null;
 	let barMaterial: MeshLambertMaterial;
@@ -257,10 +257,7 @@
 		sun.position.set(-3, -5, 8);
 		scene.add(sun);
 		barMaterial = new MeshLambertMaterial();
-		controls = new OrbitControls(camera, renderer.domElement);
-		controls.enableDamping = true;
-		controls.dampingFactor = 0.12;
-		controls.rotateSpeed = 0.8;
+		controls = new TrackballControls(camera, renderer.domElement);
 		controls.zoomSpeed = 0.9;
 		controls.addEventListener('change', () => (dirty = true));
 		resizeObs = new ResizeObserver(resize);
