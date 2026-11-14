@@ -247,7 +247,7 @@ async fn explorer_a_run_through_the_protocol_from_configure_to_stop() {
     );
 
     // The run folder: the manifest, the table, the setup, the log with every intent,
-    // the streams and the end.
+    // the streams, the results and the end.
     let folder = root.join("explorer_protocol");
     for _ in 0..100 {
         if folder.join("end.json").exists() {
@@ -262,6 +262,7 @@ async fn explorer_a_run_through_the_protocol_from_configure_to_stop() {
         "log.jsonl",
         "streams/inputs/stream.json",
         "streams/drives/stream.json",
+        "results/survey.json",
         "end.json",
     ] {
         assert!(folder.join(f).exists(), "{f} in {}", folder.display());

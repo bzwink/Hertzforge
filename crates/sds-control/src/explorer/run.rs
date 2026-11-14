@@ -426,6 +426,7 @@ impl ExplorerRun {
             status: kept.record.status(),
             record: Some(kept.record),
             run_uid: kept.run_uid,
+            table: ctx.table.clone(),
             _guard: guard,
         };
         std::thread::Builder::new()
@@ -651,12 +652,23 @@ impl ExplorerRun {
         }
     }
 
-    /// The run's end, to the record: `end.json`. Sends only; the writer finishes on its
-    /// own.
+    /// The run's results and its end, to the record: the survey line and each
+    /// channel's last display spectrum, then `end.json`. Sends only; the writer
+    /// finishes on its own.
     fn finish_record(&self, facts: &mut Facts, v: &ExplorerView) {
         let Some(record) = facts.record.take() else {
             return;
         };
+        let (revision, points) = self.data.survey();
+        let channel = self.base.control.as_ref().map(|c| c.index);
+        let table = &facts.table;
+        for (name, d, arrays) in
+            records::survey_result(revision, channel, &self.base.control_unit, &points)
+                .into_iter()
+                .chain(records::spectra_result(&self.data.spectra(), table))
+        {
+            record.put_result(&name, d, arrays, None);
+        }
         self.shared.detach_record();
         let frames = self.shared.station_frame.load(Ordering::Relaxed);
         let frames = (frames != crate::random::run::NO_FRAME).then_some(frames);
@@ -954,6 +966,8 @@ struct Facts {
     record: Option<RunRecord>,
     status: Arc<RecordStatus>,
     run_uid: String,
+    /// The table the run started on, for the results' units.
+    table: ChannelTable,
     _guard: Option<hertzforge_station::lock::LockGuard>,
 }
 

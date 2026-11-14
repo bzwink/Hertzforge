@@ -5080,7 +5080,8 @@ it is made, with the station frame and structured `data`: each steering verb the
 `intent` entry whose `data` is its station time, the generated frame it took effect at, the
 input frame it was taken at, what was asked, what was adopted and whether it was clamped. Every
 enabled input as read and the drive as the device accepted it are recorded as streams unless
-`record.streams` is false. At the end, any way the run ends, `end.json` holds `end` as
+`record.streams` is false. At the end, any way the run ends, the survey line and each acquired
+channel's last display spectrum are written as results, and `end.json` holds `end` as
 `explorer.state` reports it, the run's state and what it measured; `run.json` then says
 `complete`. A service stopped mid-run leaves the folder with `complete` false. The files are
 written by the record's own thread: the run's thread hands it entries with sends that never

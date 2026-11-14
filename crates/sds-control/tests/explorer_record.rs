@@ -192,7 +192,7 @@ async fn explorer_run_leaves_a_complete_self_describing_folder() {
             .collect()
     };
     assert_eq!(names("streams"), ["inputs", "drives"]);
-    assert!(names("results").is_empty());
+    assert_eq!(names("results"), ["survey", "spectra"]);
     assert!(run["run_uid"].as_str().unwrap().len() > 16);
 
     let setup = read_json(&folder.join("setup.json"));
@@ -245,6 +245,16 @@ async fn explorer_run_leaves_a_complete_self_describing_folder() {
         inputs["frames"], end_json["station_frames"],
         "the input stream holds every frame the station read: {end_json}"
     );
+
+    // The results: the survey and each channel's last spectrum.
+    let survey = read_json(&folder.join("results/survey.json"));
+    assert_eq!(survey["kind"], "survey");
+    assert_eq!(survey["channels"]["responses"], json!([1]));
+    assert_eq!(survey["arrays"][1]["unit"], "g");
+    let spectra = read_json(&folder.join("results/spectra.json"));
+    assert_eq!(spectra["kind"], "amplitude_spectrum");
+    assert_eq!(spectra["channels"]["responses"], json!([1, 3]));
+    assert_eq!(spectra["arrays"][0]["shape"], json!([2, 513]));
 
     assert_eq!(end_json["end"]["outcome"], "operator_stop");
     assert_eq!(

@@ -1,8 +1,9 @@
 //! What an Explorer run puts in its run folder (`docs/run-folder.md`, "What an
 //! Explorer Run Saves"): the manifest, the channel table and the setup at start, the
 //! log (every steering verb the run took is an entry with its facts), the two streams
-//! (every acquired input as read, the drive as the device accepted it), and the end
-//! with what the run measured.
+//! (every acquired input as read, the drive as the device accepted it), the results at
+//! the end (the survey line and each channel's last display spectrum), and the end with
+//! what the run measured.
 //!
 //! The writing is the shared record's ([`crate::record`]), on its own thread; this
 //! module only says what is written, in the reader's form (`hertzforge.io.run_folder`).
@@ -14,9 +15,9 @@ use super::view::{state_json, End, ExplorerView};
 use crate::protocol::num;
 use crate::random::record::{
     build_value, drive_rows, input_rows, sim_value, start_json, station_member,
-    stream_channel_value, table_json,
+    stream_channel_value, table_json, Described,
 };
-use crate::record::{tap::TapLink, Begin, StreamSpec};
+use crate::record::{tap::TapLink, ArrayValues, Begin, ResultArray, StreamSpec};
 use crate::station::{source_of, StationPlan};
 use crate::table::unit_name;
 use hertzforge_channel_table::ChannelTable;
@@ -333,6 +334,130 @@ pub fn begin(f: &StartFacts<'_>, root: PathBuf, links: (TapLink, TapLink)) -> Be
         log: Vec::new(),
         streams,
     }
+}
+
+fn f64s(name: &str, shape: Vec<usize>, unit: &str, values: Vec<f64>) -> ResultArray {
+    ResultArray {
+        name: name.into(),
+        shape,
+        unit: unit.into(),
+        values: ArrayValues::F64(values),
+    }
+}
+
+fn described(kind: &str, abscissa: Value, channels: Value) -> Map<String, Value> {
+    let mut m = Map::new();
+    m.insert("kind".into(), Value::from(kind));
+    m.insert("abscissa".into(), abscissa);
+    m.insert("channels".into(), channels);
+    m
+}
+
+/// The survey line at the end: the control row's amplitude at the tone, peak, at each
+/// frequency the tone visited, ascending (`kind` `survey`), its highest point and the
+/// revision it was taken at. `None` when it holds no point.
+pub fn survey_result(
+    revision: u64,
+    channel: Option<u32>,
+    unit: &str,
+    points: &[(f64, f64)],
+) -> Option<Described> {
+    let channel = channel?;
+    if points.is_empty() {
+        return None;
+    }
+    let n = points.len();
+    let mut d = described(
+        "survey",
+        json!({"kind": "frequency", "unit": "Hz", "array": "frequency"}),
+        json!({"responses": [channel]}),
+    );
+    d.insert(
+        "description".into(),
+        Value::from(
+            "the survey line: the control row's amplitude at the tone, peak, at each \
+             frequency the tone visited",
+        ),
+    );
+    let peak = points
+        .iter()
+        .copied()
+        .fold(None, |best: Option<(f64, f64)>, p| match best {
+            Some(b) if b.1 >= p.1 => Some(b),
+            _ => Some(p),
+        });
+    d.insert(
+        "peak".into(),
+        peak.map_or(
+            Value::Null,
+            |(hz, level)| json!({"hz": num(hz), "level": num(level)}),
+        ),
+    );
+    d.insert("revision".into(), Value::from(revision));
+    Some((
+        "survey".into(),
+        d,
+        vec![
+            f64s(
+                "frequency",
+                vec![n],
+                "Hz",
+                points.iter().map(|p| p.0).collect(),
+            ),
+            f64s("level", vec![n], unit, points.iter().map(|p| p.1).collect()),
+        ],
+    ))
+}
+
+/// Each acquired channel's last display window at the end: its linear amplitude
+/// spectrum, peak, from one Hann window amplitude-corrected so a tone reads its
+/// amplitude, magnitude only (`kind` `amplitude_spectrum`). `None` when no window was
+/// made.
+pub fn spectra_result(spectra: &[(u32, f64, Vec<f64>)], table: &ChannelTable) -> Option<Described> {
+    let (_, df, first) = spectra.first()?;
+    let lines = first.len();
+    if lines == 0 || spectra.iter().any(|(_, d, m)| m.len() != lines || d != df) {
+        return None;
+    }
+    let units: Vec<String> = spectra
+        .iter()
+        .map(|(ch, _, _)| {
+            table
+                .channels
+                .iter()
+                .find(|c| c.index == *ch)
+                .map_or_else(String::new, |c| unit_name(&c.units))
+        })
+        .collect();
+    let unit = match units.first() {
+        Some(u) if units.iter().all(|x| x == u) => u.clone(),
+        _ => String::new(),
+    };
+    let mut d = described(
+        "amplitude_spectrum",
+        json!({"kind": "frequency", "unit": "Hz", "start": 0.0, "step": df}),
+        json!({"responses": spectra.iter().map(|(ch, _, _)| ch).collect::<Vec<_>>()}),
+    );
+    d.insert(
+        "description".into(),
+        Value::from(
+            "each acquired channel's last display window: its amplitude spectrum, peak, \
+             from one Hann window corrected so a tone reads its amplitude; magnitude only",
+        ),
+    );
+    d.insert(
+        "units".into(),
+        Value::Array(units.into_iter().map(Value::from).collect()),
+    );
+    let values: Vec<f64> = spectra
+        .iter()
+        .flat_map(|(_, _, m)| m.iter().copied())
+        .collect();
+    Some((
+        "spectra".into(),
+        d,
+        vec![f64s("values", vec![spectra.len(), lines], &unit, values)],
+    ))
 }
 
 /// What the run measured at the end: each acquired channel's rms, the measured
