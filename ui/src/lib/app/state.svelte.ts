@@ -2033,6 +2033,8 @@ export class AppState {
 	readonly shockRunOpen: RunOpen;
 	/** A finished Sine run's way to its data on the analysis side. */
 	readonly sineRunOpen: RunOpen;
+	/** A finished Mixed Mode run's way to its data on the analysis side. */
+	readonly mixedRunOpen: RunOpen;
 	/** MIMO Random's setup and run; the station and table are the Acquire store's. */
 	readonly mimo: MimoState;
 	/** Acquire & Control's test types and which screen it shows. */
@@ -2102,6 +2104,7 @@ export class AppState {
 		this.runOpen = new RunOpen(runHost);
 		this.shockRunOpen = new RunOpen(runHost, 'classical_shock');
 		this.sineRunOpen = new RunOpen(runHost, 'sine');
+		this.mixedRunOpen = new RunOpen(runHost, 'mixed');
 		this.mimo = new MimoState(this.acquire, config.popout ? { local: null, drafts: false } : {});
 		this.shock = new ShockStore(this.acquire, config.popout ? { local: null, drafts: false } : {});
 		this.mimoShock = new MimoShockStore(this.acquire, config.popout ? { local: null, drafts: false } : {});

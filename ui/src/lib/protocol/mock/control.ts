@@ -990,7 +990,10 @@ export function createControlServer(options: ControlServerOptions = {}): MockSer
 		},
 		clientName,
 		feasibilityExceeds: options.feasibilityExceeds ?? false,
-		toneLaws: () => sine.laws()
+		toneLaws: () => sine.laws(),
+		dataRoot: options.dataRoot,
+		record: options.record,
+		folderName: runFolderName
 	});
 	// ---- MIMO Shock, on the same run slot and seat ----------------------------------------------
 	const mimoShock = createMimoShockMock({

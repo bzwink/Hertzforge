@@ -22,9 +22,10 @@ export interface RunOpenHost {
 export function workspaceForRun(test: string): Workspace {
 	// PSDs against their specification are the Random workspace's, sine levels against theirs the
 	// Sine workspace's, and a classical shock run's pulses, SRS and their band the Shock
-	// workspace's; any other run's recordings, Signals'.
+	// workspace's; a Mixed Mode run's floor and tones the Sine workspace's, where its data sheet
+	// is; any other run's recordings, Signals'.
 	if (test === 'random') return 'random';
-	if (test === 'sine') return 'sine';
+	if (test === 'sine' || test === 'mixed') return 'sine';
 	if (test === 'classical_shock') return 'shock';
 	return 'signals';
 }

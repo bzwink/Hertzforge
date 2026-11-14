@@ -10,6 +10,7 @@
 	import PulseRunView from '../pulse/PulseRunView.svelte';
 	import type { PlotPanel } from '../screen/screen.svelte';
 	import type { CardKind } from '../screen/types';
+	import type { RunOpen } from '../runOpen.svelte';
 	import SineLiveParams from '../sine/SineLiveParams.svelte';
 	import MixedLevelCard from './MixedLevelCard.svelte';
 	import MixedLogCard from './MixedLogCard.svelte';
@@ -27,8 +28,10 @@
 		onoverride?: () => void;
 		abortKeys: string;
 		compact?: boolean;
+		/** A finished run's way to its data on the analysis side; absent in a window that only watches. */
+		opener?: RunOpen | null;
 	}
-	let { mixed, views, station, onpopout, onoverride, abortKeys, compact = false }: Props = $props();
+	let { mixed, views, station, onpopout, onoverride, abortKeys, compact = false, opener = null }: Props = $props();
 
 	const status = $derived(mixed.now);
 	const live = $derived(mixed.frameOfRun);
@@ -114,4 +117,6 @@
 	{onoverride}
 	{abortKeys}
 	{compact}
+	record={status?.record ?? null}
+	{opener}
 />

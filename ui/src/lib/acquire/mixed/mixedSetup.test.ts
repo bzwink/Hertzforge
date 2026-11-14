@@ -1,7 +1,7 @@
 /**
  * The Mixed Mode draft against the wire: PROTOCOL.md's own combined configuration read into the
  * draft and written back field for field (every part kind, every schedule kind, both amplitude and
- * both width forms, the laws and their guards, limits, capture); every wire field the draft writes
+ * both width forms, the laws and their guards, limits, the run record); every wire field the draft writes
  * is one the configuration names; the editor's own findings; where a service finding lands; and an
  * edit made to several rows at once.
  */
@@ -64,7 +64,7 @@ describe('the draft and the wire', () => {
 		expect(sorted(back.schedule)).toEqual(sorted(c.schedule));
 		expect(back.limits.drive_vpk_ceiling).toBe(4);
 		expect(back.limits.channels).toEqual(c.limits.channels);
-		expect(sorted(back.capture)).toEqual(sorted(c.capture));
+		expect([back.operator, back.article, back.notes, back.specification, back.record]).toEqual([c.operator, c.article, c.notes, c.specification, c.record]);
 		expect(back.metadata).toEqual(c.metadata);
 	});
 

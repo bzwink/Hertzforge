@@ -25,18 +25,10 @@ import type {
 	MixedWindow
 } from '$lib/protocol/mixed';
 import { MIXED_MAX_BANDS, MIXED_MAX_TONES } from '$lib/protocol/mixed';
-import type { SineCaptureRule, SineDirection, SineDwellFor } from '$lib/protocol/sine';
+import type { SineDirection, SineDwellFor } from '$lib/protocol/sine';
 import { lawWireParams, type LawDraft } from '../law/lawForm';
-import { defaultControl, newBreakpoint, shakerRecord, type BreakpointDraft, type ControlDraft, type FieldErrors, type LevelDraft } from '../setup';
+import { defaultControl, defaultRecord, newBreakpoint, shakerRecord, type BreakpointDraft, type ControlDraft, type FieldErrors, type LevelDraft, type RecordDraft } from '../setup';
 import { newRow, profileDraftOf, profileOf, type SineProfileDraft } from '../sine/sineSetup';
-
-/** Mixed Mode's capture rules: what its run records beyond its report. */
-export const CAPTURE_RULES: { id: SineCaptureRule; label: string; help: string }[] = [
-	{ id: 'off', label: 'Off', help: 'Nothing is recorded beyond the run report.' },
-	{ id: 'entire_test', label: 'Entire test', help: 'Everything from engage to the end.' },
-	{ id: 'manual', label: 'Manual', help: 'Only when you start and stop it.' },
-	{ id: 'first_seconds', label: 'First seconds at each level', help: 'A set number of seconds at each level, once it has settled there.' }
-];
 
 // ---------------------------------------------------------------------------------------------
 // The draft
@@ -143,7 +135,8 @@ export interface MixedDraft {
 		moving_mass_lb: { armature: number; slip_table: number; drive_adapter: number; fixturing: number; test_article: number };
 		crest_factor: number;
 	};
-	capture: { rule: SineCaptureRule; first_s: number; level_settle_s: number; periodic_save_s: number | null; run_name: string };
+	/** The run's record: the operator's words and whether the time histories are kept (Random's). */
+	record: RecordDraft;
 	metadata: { key: string; label: string; value: string }[];
 }
 
@@ -249,7 +242,7 @@ export function defaultMixedSetup(): MixedDraft {
 		},
 		limits: { drive_vpk_ceiling: NaN, drive_vpk_abort: NaN, kinematic_monitor: true, channels: [] },
 		feasibility: { enabled: false, shaker_text: '', moving_mass_lb: { armature: 0, slip_table: 0, drive_adapter: 0, fixturing: 0, test_article: 0 }, crest_factor: 3 },
-		capture: { rule: 'off', first_s: 10, level_settle_s: 1, periodic_save_s: null, run_name: 'mixed' },
+		record: defaultRecord(),
 		metadata: [{ key: 'run_number', label: 'Run Number', value: '' }]
 	};
 }
@@ -299,7 +292,8 @@ export function mergeMixedSetup(saved: Partial<MixedDraft> | null): MixedDraft {
 	if (!isList(out.limits.channels)) out.limits.channels = [];
 	out.feasibility = { ...base.feasibility, ...(saved.feasibility ?? {}) };
 	out.feasibility.moving_mass_lb = { ...base.feasibility.moving_mass_lb, ...(saved.feasibility?.moving_mass_lb ?? {}) };
-	out.capture = { ...base.capture, ...(saved.capture ?? {}) };
+	out.record = { ...base.record, ...(saved.record ?? {}) };
+	delete (out as Partial<MixedDraft> & { capture?: unknown }).capture;
 	if (!Array.isArray(out.metadata)) out.metadata = base.metadata;
 	return out;
 }
@@ -428,7 +422,8 @@ export function toMixedConfig(d: MixedDraft, laws: { floor: LawEntry | null; ton
 	const controlRows = rows ? new Set(rows.filter((r) => r.enabled && r.role === 'control').map((r) => r.index)) : null;
 	const c = d.control;
 	const last = d.schedule.levels.length - 1;
-	const cap = d.capture;
+	const r = d.record;
+	const [document, clause] = [r.document.trim(), r.clause.trim()];
 	return {
 		title: d.title.trim(),
 		parts: partsOf(d),
@@ -474,13 +469,11 @@ export function toMixedConfig(d: MixedDraft, laws: { floor: LawEntry | null; ton
 			channels: d.limits.channels.map((l) => ({ channel: l.channel, kind: l.kind, rows: l.rows.map((r) => ({ freq_hz: r.freq_hz, ceiling: r.ceiling })) }))
 		},
 		feasibility: f.enabled && shaker ? { shaker, moving_mass_lb: { ...f.moving_mass_lb }, crest_factor: f.crest_factor } : null,
-		capture: {
-			rule: cap.rule,
-			first_s: cap.rule === 'first_seconds' ? cap.first_s : null,
-			level_settle_s: cap.level_settle_s,
-			periodic_save_s: cap.periodic_save_s,
-			run_name: cap.run_name.trim()
-		},
+		operator: r.operator.trim(),
+		article: r.article.trim(),
+		notes: r.notes.trim(),
+		specification: document || clause ? { document, clause } : null,
+		record: { streams: r.streams },
 		metadata: d.metadata.map((m) => (m.label ? { key: m.key, label: m.label, value: m.value } : { key: m.key, value: m.value }))
 	};
 }
@@ -498,7 +491,6 @@ export function fromMixedConfig(c: MixedConfig): MixedDraft {
 	const win = (w: MixedWindow | undefined): WindowDraft => ({ on_s: w?.on_s ?? 0, off_s: w?.off_s ?? null });
 	const ctl = c.control ?? {};
 	const g = ctl.law_guards ?? {};
-	const cap = c.capture ?? {};
 	const pre = ctl.pretest ?? {};
 	return {
 		title: c.title ?? '',
@@ -595,12 +587,13 @@ export function fromMixedConfig(c: MixedConfig): MixedDraft {
 		feasibility: c.feasibility
 			? { enabled: true, shaker_text: JSON.stringify(c.feasibility.shaker, null, 2), moving_mass_lb: { ...c.feasibility.moving_mass_lb }, crest_factor: c.feasibility.crest_factor ?? 3 }
 			: base.feasibility,
-		capture: {
-			rule: cap.rule ?? 'off',
-			first_s: cap.first_s ?? base.capture.first_s,
-			level_settle_s: cap.level_settle_s ?? base.capture.level_settle_s,
-			periodic_save_s: cap.periodic_save_s ?? null,
-			run_name: cap.run_name ?? 'mixed'
+		record: {
+			operator: c.operator ?? '',
+			article: c.article ?? '',
+			notes: c.notes ?? '',
+			document: c.specification?.document ?? '',
+			clause: c.specification?.clause ?? '',
+			streams: c.record?.streams ?? true
 		},
 		metadata: (c.metadata ?? []).map((m) => ({ key: m.key, label: m.label ?? '', value: m.value }))
 	};
@@ -609,7 +602,7 @@ export function fromMixedConfig(c: MixedConfig): MixedDraft {
 // ---------------------------------------------------------------------------------------------
 // Where a finding belongs
 
-export type MixedSection = 'station' | 'floor' | 'parts' | 'schedule' | 'control' | 'limits' | 'capture';
+export type MixedSection = 'station' | 'floor' | 'parts' | 'schedule' | 'control' | 'limits' | 'record';
 
 export const MIXED_SECTIONS: { id: MixedSection; label: string }[] = [
 	{ id: 'station', label: 'Station & Channels' },
@@ -618,7 +611,7 @@ export const MIXED_SECTIONS: { id: MixedSection; label: string }[] = [
 	{ id: 'schedule', label: 'Schedule' },
 	{ id: 'control', label: 'Control' },
 	{ id: 'limits', label: 'Limits' },
-	{ id: 'capture', label: 'Capture' }
+	{ id: 'record', label: 'Run Record' }
 ];
 
 /** The column of a tone's or a narrowband's row a field path inside the part lands on. */
@@ -706,7 +699,7 @@ export function mixedSectionOf(key: string): MixedSection {
 	if (/^(schedule|control\.(pretest|coherence_floor|review_after_sysid))(\.|$)/.test(key)) return 'schedule';
 	if (/^(lawFloor|lawTones|guards|control|acquisition)(\.|$)/.test(key)) return 'control';
 	if (/^(limits|feasibility)(\.|$)/.test(key)) return 'limits';
-	if (/^(capture|metadata)(\.|$)/.test(key)) return 'capture';
+	if (/^(operator|article|notes|specification|record|metadata)(\.|$)/.test(key)) return 'record';
 	return 'floor';
 }
 
@@ -849,11 +842,7 @@ export function localErrors(d: MixedDraft): FieldErrors {
 		for (const [k, v] of Object.entries(f.moving_mass_lb)) need(out, `feasibility.moving_mass_lb.${k}`, v);
 		need(out, 'feasibility.crest_factor', f.crest_factor);
 	}
-	const cap = d.capture;
-	if (cap.rule === 'first_seconds') need(out, 'capture.first_s', cap.first_s);
-	need(out, 'capture.level_settle_s', cap.level_settle_s);
-	if (cap.periodic_save_s !== null) need(out, 'capture.periodic_save_s', cap.periodic_save_s);
-	if (cap.rule !== 'off' && !cap.run_name.trim()) add(out, 'capture.run_name', 'Name the run folder, or turn capture off.');
+	if (d.record.clause.trim() && !d.record.document.trim()) add(out, 'specification.document', 'Name the document this clause is from.');
 	return out;
 }
 

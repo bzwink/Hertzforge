@@ -23,7 +23,7 @@
  * here is the service's control.
  */
 
-import type { ChannelRow, DataSource, LogEntry, ReadingRow, RefusalReason, Series, SpectrumView, StationRef, View } from '../types';
+import type { ChannelRow, DataSource, LogEntry, ReadingRow, RefusalReason, RunRecordRef, Series, SpectrumView, StationRef, View } from '../types';
 import type { LawEntry } from '../mimo';
 import type {
 	MixedAlarm,
@@ -574,6 +574,8 @@ interface Run {
 	end: MixedEnd | null;
 	timer: ReturnType<typeof setInterval> | null;
 	lawLive: Record<string, number>;
+	/** The run's record, from arm on. */
+	record: RunRecordRef | null;
 }
 
 export interface MixedMock {
@@ -591,6 +593,12 @@ const LIVE: MixedRunState[] = ['armed', 'running', 'review', 'stopping'];
 export interface MixedMockHost extends ShockMockHost {
 	/** The tones' laws: the Sine world's, as the Sine mock lists them. */
 	toneLaws(): LawEntry[];
+	/** Where a run's folder is made (default `~/Hertzforge_Data`). */
+	dataRoot?: string;
+	/** A run's record: refused at arm (`unwritable`), or a stream stops while it runs (`problem`). */
+	record?: 'unwritable' | 'problem';
+	/** A run folder's name: the time it armed, the test and the run's id. */
+	folderName?: (at: Date, runId: string, test: string) => string;
 }
 
 export function createMixedMock(host: MixedMockHost): MixedMock {
@@ -788,7 +796,8 @@ export function createMixedMock(host: MixedMockHost): MixedMock {
 						}
 					: null,
 			feasibility: r.derived.feasibility,
-			end: r.end
+			end: r.end,
+			...(r.record ? { record: { ...r.record } } : {})
 		};
 	}
 
@@ -806,7 +815,7 @@ export function createMixedMock(host: MixedMockHost): MixedMock {
 	function stateChanged() {
 		if (!run) return;
 		const s = stateOf(run);
-		const key = JSON.stringify([s.state, s.phase, s.mode, s.level_db, s.held, s.alarm, s.limiting, s.end?.outcome ?? null, s.parts.map((p) => [p.on, p.alarm, p.settled])]);
+		const key = JSON.stringify([s.state, s.phase, s.mode, s.level_db, s.held, s.alarm, s.limiting, s.end?.outcome ?? null, s.parts.map((p) => [p.on, p.alarm, p.settled]), s.record ?? null]);
 		if (key === lastStateKey) return;
 		lastStateKey = key;
 		host.broadcast('mixed.state', s as unknown as Record<string, unknown>);
@@ -872,7 +881,8 @@ export function createMixedMock(host: MixedMockHost): MixedMock {
 			identification: null,
 			end: null,
 			timer: null,
-			lawLive: Object.fromEntries((host.toneLaws().find((l) => l.id === (config.control?.law?.tones?.id ?? 'servo_blend'))?.params ?? []).filter((p) => p.kind === 'number').map((p) => [p.key, ((config.control?.law?.tones?.params ?? {}) as Record<string, number>)[p.key] ?? (p as { default: number }).default]))
+			lawLive: Object.fromEntries((host.toneLaws().find((l) => l.id === (config.control?.law?.tones?.id ?? 'servo_blend'))?.params ?? []).filter((p) => p.kind === 'number').map((p) => [p.key, ((config.control?.law?.tones?.params ?? {}) as Record<string, number>)[p.key] ?? (p as { default: number }).default])),
+			record: null
 		};
 	}
 
@@ -957,6 +967,13 @@ export function createMixedMock(host: MixedMockHost): MixedMock {
 			return;
 		}
 		if (r.state !== 'running' && r.state !== 'stopping') return;
+		if (host.record === 'problem' && r.record && r.record.streams === 'on' && r.record.problem === null && r.t >= 2) {
+			const problem = 'Recording of the inputs stream stopped: a write failed: no space left on the disk. The run goes on.';
+			r.record = { ...r.record, problem };
+			addLog('record', problem);
+			lastStateKey = '';
+			stateChanged();
+		}
 		r.t += dt;
 		if (!r.held) r.elapsed += dt;
 		const ramp = r.config.control?.part_ramp_s ?? 3;
@@ -1398,10 +1415,27 @@ export function createMixedMock(host: MixedMockHost): MixedMock {
 		return { rate: rate as number, plots };
 	}
 
+	/** Claim the run's folder at arm, or refuse the arm as the service does when it cannot be written. */
+	function claimRecord(r: Run) {
+		if (r.record) return;
+		const root = (host.dataRoot ?? '~/Hertzforge_Data').replace(/[\\/]+$/, '');
+		const name = host.folderName ? host.folderName(new Date(), r.id, 'mixed') : `mixed_${r.id}`;
+		const folder = `${root}/${name}`;
+		if (host.record === 'unwritable') {
+			const reason = 'Permission denied';
+			refuse('refused', 'record_unwritable' as RefusalReason, `The run's record could not be written, so the run did not arm: ${folder} (${reason}). Choose a data folder that can be written.`, { path: folder, reason });
+		}
+		const streams = r.config.record?.streams === false ? 'off' : 'on';
+		r.record = { folder, streams, problem: null };
+		if (streams === 'off') addLog('record', "the run's streams are not recorded: switched off in the setup");
+	}
+
 	function configure(params: Record<string, unknown>, conn: MockConnection) {
 		const dry = params.dry_run === true;
 		if (!dry) host.own(conn);
 		shapeCheck(params.config);
+		if ((params.config as Record<string, unknown>).capture != null)
+			bad('config.capture', 'Mixed Mode takes no "capture": every run is recorded in its run folder as it goes, and "record.streams" says whether the record keeps its time histories.');
 		const config = structuredClone(params.config) as MixedConfig;
 		const { errors, warnings } = checkConfig(config, host.rows(), host.toneLaws());
 		if (dry) {
@@ -1457,6 +1491,7 @@ export function createMixedMock(host: MixedMockHost): MixedMock {
 					return stateOf(r);
 				}
 				if (r.state === 'blocked' && typeof params.override_ack !== 'string') refuse('refused', 'feasibility_exceeded' as RefusalReason, 'Arming past the ratings needs an acknowledgement.');
+				claimRecord(r);
 				r.derived = derive(r.config, host.rows(), host.toneLaws(), true, r.config.acquisition.fs_hz);
 				addLog('station', 'Station open and gated; nothing driven.');
 				setPhase(r, 'armed', 'armed');
@@ -1467,6 +1502,7 @@ export function createMixedMock(host: MixedMockHost): MixedMock {
 				const r = needRun();
 				if (r.state === 'configured') {
 					notWhileOther('starting');
+					claimRecord(r);
 					r.derived = derive(r.config, host.rows(), host.toneLaws(), true, r.config.acquisition.fs_hz);
 					setPhase(r, 'armed', 'armed');
 				}
