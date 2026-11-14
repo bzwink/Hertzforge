@@ -5,8 +5,9 @@ control service while the run goes, that needs no other file and no running
 service to be read. The analysis side converts it into an ordinary project file
 (`hertzforge convert-run FOLDER`, or open the folder or its `run.json`), so a
 finished run reaches every analysis tool with its channel table, its setup, its
-log and its measurements. Today the Random, Sine, Classical Shock and TWR modules
-and the Recorder write one for every run; the other control modules do not yet.
+log and its measurements. Today the Random, Sine, Classical Shock, SRS shock and
+TWR modules and the Recorder write one for every run; the other control modules
+do not yet.
 
 The exact form is the reader's, `hertzforge.io.run_folder`; the conversion is
 `hertzforge.io.run_convert`, described in `docs/hforge-format.md` ("Run Folders
@@ -19,11 +20,12 @@ Under the service's data folder: the folder `HERTZFORGE_DATA_ROOT` names, or
 `Hertzforge_Data` in the home folder. A Random run's folder is named
 `<YYYYMMDD-HHMMSS>_random_<run id>`, a Sine run's
 `<YYYYMMDD-HHMMSS>_sine_<run id>`, a Classical Shock run's
-`<YYYYMMDD-HHMMSS>_classical_shock_<run id>` and a TWR run's
-`<YYYYMMDD-HHMMSS>_twr_<run id>`, the time it armed in UTC. A
-Recorder run's folder is the plain name its setup gives (`capture.run_name`).
-The run's state names the folder from arm on (`random.state`, `sine.state`,
-`shock.state`, `twr.state` and `recorder.state`, `record.folder`).
+`<YYYYMMDD-HHMMSS>_classical_shock_<run id>`, an SRS shock run's
+`<YYYYMMDD-HHMMSS>_srs_<run id>` and a TWR run's
+`<YYYYMMDD-HHMMSS>_twr_<run id>`, the time it armed in UTC. A Recorder run's
+folder is the plain name its setup gives (`capture.run_name`). The run's state
+names the folder from arm on (`random.state`, `sine.state`, `shock.state`,
+`srs.state`, `twr.state` and `recorder.state`, `record.folder`).
 
 ## Layout
 
@@ -264,6 +266,53 @@ The golden folder is written by `cargo test -p sds-control --test
 classical_shock_golden_run` from a short run on the simulator, with fixed seeds,
 its wall times and build fields normalized; `scripts/make_golden_runs.sh`
 rewrites it.
+
+## What an SRS Run Saves
+
+From arm: `run.json`, `table.json`, `setup.json` (the configuration as
+accepted; resolved, the target as given and on the band centres, the bands and
+their Q, the envelope's alarm and abort bands, the synthesis settings with the
+offline synthesis's result, its pulse's kinematics and its fitted table, the
+ring-out, the level schedule and pulse counts, the spacing, the identification,
+the control settings and the controller's own, the limits, monitors and limit
+channels, and the rates; the derived values; feasibility), `law/law.json` (the
+law's identity, parameters and guards) and `log.jsonl` (every state, level,
+pulse fired with its level and verdict, alarm, drive-limit action, notch, unused
+law call, trip, hold and operator action, each with its facts in `data`), and
+these files, each checked against the golden run folder
+(`schema/golden/runs/srs/`) by `tests/test_srs_run_folder_golden.py`:
+
+| File | What |
+|---|---|
+| `streams/inputs` | Every enabled input as read from the station, in table order, a shot for the identification and one for each pulse (`kind` `inputs`) |
+| `streams/drives` | The drive as the device accepted it, in volts, shot for shot with the inputs (`kind` `drives`) |
+| `results/srs_reference` | The target SRS at full level on the run's bands, with the envelope's alarm band and abort band (`kind` `srs_reference`) |
+| `results/synthesis` | The pulse the configuration was synthesized to, at full level and the configured rate, with its velocity, displacement and SRS on the bands (`kind` `srs_synthesis`, kept as arrays) |
+| `results/identification_frf` | The identification's complex transfer function, drive to control response, on the band (`kind` `frf`) |
+| `results/identification_coherence` | Its ordinary coherence (`kind` `coherence`) |
+| `results/pulse_srs` | Each pulse's SRS, with the target at the level fired and the envelope's bands (`kind` `srs`, one record per pulse measured) |
+| `results/drive_tables` | The drive table after each pulse: each component's frequency and drive amplitude, and the law's gains (`kind` `srs_drive_table`, kept as arrays, one record per pulse) |
+| `results/pulses` | Each pulse as judged: its level, scheduled level, limit scale, drive peak, peak, peak velocity, peak-to-peak displacement, worst band error and its frequency, bands outside the alarm and abort bands, the limit channels' cut and its verdict (`kind` `pulse_results`, kept as arrays, one record per pulse) |
+| `end.json` | The end, as the run's state reports it |
+
+Each pulse's results are written when the pulse is judged, the last pulse of
+the run included; a record's line names the pulse, its level and the station
+frame, and the law call it played. Every SRS shot fires at its first frame. A
+shot no pulse was judged on (a pulse withheld in the wait before it played, when
+nobody held control, or one stopped part way) is named `unjudged`; a withheld
+one holds the drive committed for it and no input frames, and says `played`
+false. A run that ends before its identification has no identification and no
+pulses; one held by identification has its identification and no pulses. With
+`record.streams` false there is no `streams/` folder. The limit channels' own
+identified gains are not saved. The analysis side keeps the synthesis, the drive
+tables and the verdicts and kinematics of `pulses` as arrays in the run record,
+since no analysis class holds them: the synthesized pulse is a design the drive
+started from, not a waveform the test was controlled to.
+
+The golden folder is written by `cargo test -p sds-control --test
+srs_golden_run` from a short run on the simulator, with fixed seeds, its wall
+times, its law calls' times and build fields normalized;
+`scripts/make_golden_runs.sh` rewrites it.
 
 ## What a TWR Run Saves
 

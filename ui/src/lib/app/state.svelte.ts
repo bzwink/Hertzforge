@@ -2031,6 +2031,8 @@ export class AppState {
 	readonly runOpen: RunOpen;
 	/** A finished classical shock run's way to its data: the Shock workspace. */
 	readonly shockRunOpen: RunOpen;
+	/** A finished SRS shock run's way to its data: the Shock workspace. */
+	readonly srsRunOpen: RunOpen;
 	/** A finished Sine run's way to its data on the analysis side. */
 	readonly sineRunOpen: RunOpen;
 	/** A finished TWR run's way to its data: the Transient Analysis workspace. */
@@ -2103,6 +2105,7 @@ export class AppState {
 		};
 		this.runOpen = new RunOpen(runHost);
 		this.shockRunOpen = new RunOpen(runHost, 'classical_shock');
+		this.srsRunOpen = new RunOpen(runHost, 'srs');
 		this.sineRunOpen = new RunOpen(runHost, 'sine');
 		this.twrRunOpen = new RunOpen(runHost, 'twr');
 		this.mimo = new MimoState(this.acquire, config.popout ? { local: null, drafts: false } : {});

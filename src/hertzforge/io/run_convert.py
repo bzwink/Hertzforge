@@ -3,9 +3,9 @@
 `convert` reads a run folder (`hertzforge.io.run_folder`) and writes a
 `.hforge` project every analysis tool opens with `Project.open`, by
 default `<run name>.hforge` inside the folder. The control service's
-Random, Sine, Classical Shock and TWR modules and its Recorder write a
-run folder for every run; the other control modules do not yet. This is
-the analysis side of that bridge.
+Random, Sine, Classical Shock, SRS shock and TWR modules and its Recorder
+write a run folder for every run; the other control modules do not yet.
+This is the analysis side of that bridge.
 
 The project holds, in this order:
 
@@ -18,9 +18,10 @@ The project holds, in this order:
   A recording's time is measured from its trigger, so its pre-trigger
   samples are at negative times; a pulse module's stream is one record
   per shot, timed from its firing, with a history for each kind of shot
-  (a Classical Shock run's identification, its pulses; a TWR run's
-  identification, its plays, each timed from its section's start, and a
-  play cut short in a history of its own). The samples are
+  (a shock run's identification, its pulses; a TWR run's identification,
+  its plays, each timed from its section's start, and a play cut short in
+  a history of its own); a shot that holds no frames (a pulse withheld
+  before it played) is no record. The samples are
   copied a block at a time, float32 as recorded
   (`native.StreamedHistory`);
 - the `Specification` a Random run was controlled to, from the setup's
@@ -41,7 +42,8 @@ The project holds, in this order:
   conj(X) Y, so nothing is conjugated here);
 - an `Srs` per result of kind `srs` (a record per pulse), and a
   `ShockSpecification` per result of kind `srs_reference`, its band as
-  the warning limits, in SI at the result's Q;
+  the warning limits and its abort band (where it has one) as the abort
+  limits, in SI at the result's Q;
 - the `TransientSpecification` a TWR run was controlled to, from its
   result of kind `transient_reference` (the prepared section between its
   pads at full level, time from the section's start), in SI; it has no
@@ -86,7 +88,8 @@ ANALYSIS_KINDS = ('psd', 'cpsd', 'frf', 'coherence', 'srs', 'srs_reference', 'si
 
 #: the arrays of a result kind its analysis object holds (its abscissa
 #: besides); the rest are kept in the run record
-_HELD_ARRAYS = {'srs_reference': ('reference', 'band_low', 'band_high'),
+_HELD_ARRAYS = {'srs_reference': ('reference', 'band_low', 'band_high', 'abort_low',
+                                   'abort_high'),
                 'transient_reference': ('reference',)}
 
 #: the name of the one tone a Sine run's specification and levels hold
@@ -423,6 +426,8 @@ def _shot_spans(stream: run_folder.Stream
             continue
         at = int(shot.get('first_frame', 0))
         frames = max(0, min(int(shot.get('frames', 0)), stream.frames - at))
+        if frames == 0:
+            continue
         pre = shot.get('pre_frames')
         t0 = -pre / stream.rate if isinstance(pre, int) else 0.0
         spans.append((at, frames, t0, shot.get('level_db'), shot))
@@ -856,8 +861,9 @@ def _srs_object(result: run_folder.Result, table: Any,
     """An SRS result as the analysis holds it, or (None, why not): a
     result of kind `srs` an `Srs`, a record per pulse where it repeats; a
     result of kind `srs_reference` (a nominal SRS and its tolerance band)
-    a `ShockSpecification` with the band as its warning limits. In SI,
-    at the result's Q and type."""
+    a `ShockSpecification` with the band as its warning limits and an
+    abort band, where the result has one, as its abort limits. In SI, at
+    the result's Q and type."""
     from ..core.data import ShockSpecification, Srs
     from ..units import UNKNOWN, si_transform
 
@@ -907,7 +913,8 @@ def _srs_object(result: run_folder.Result, table: Any,
     if not spec:
         return Srs(**kwargs), ''
     limits = {}
-    for array, limit in (('band_low', 'warning_lower'), ('band_high', 'warning_upper')):
+    for array, limit in (('band_low', 'warning_lower'), ('band_high', 'warning_upper'),
+                         ('abort_low', 'abort_lower'), ('abort_high', 'abort_upper')):
         if array in result.arrays:
             limits[limit] = np.asarray(result.arrays[array], dtype=np.float64).reshape(
                 1, -1) * factor

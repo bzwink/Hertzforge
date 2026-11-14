@@ -1,0 +1,14 @@
+{
+  "id": "srs_ratio",
+  "name": "SRS ratio",
+  "version": "0.1.0",
+  "sha256": null,
+  "builtin": true,
+  "params": {},
+  "guards": {
+    "law_budget": 0.25,
+    "law_misses": 3,
+    "max_pulses": 100,
+    "max_gain_rise_db": 6.0
+  }
+}

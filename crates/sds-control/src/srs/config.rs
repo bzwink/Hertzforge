@@ -327,9 +327,15 @@ pub struct WireSrs {
     pub headroom_db: f64,
     pub limit_channels: Vec<WireLimitChannel>,
     pub feasibility: Option<WireFeasibility>,
-    pub capture_auto_start: bool,
-    pub capture_run_name: String,
     pub metadata: Vec<MetaField>,
+    /// The operator's words for the run's record: who ran it, on what, and notes.
+    pub operator: String,
+    pub article: String,
+    pub notes: String,
+    /// What the test is run to: the document and its clause.
+    pub specification: Option<(String, String)>,
+    /// Whether the record holds the inputs and the drive as streams.
+    pub record_streams: bool,
     /// The configuration as accepted, kept with the run.
     pub raw: Value,
 }
@@ -869,12 +875,34 @@ pub fn parse(config: &Value) -> Result<WireSrs, MethodError> {
         }
     };
 
-    let (capture_auto_start, capture_run_name) = match c.opt_obj("capture")? {
-        None => (false, "srs_shock".to_owned()),
-        Some(o) => (
-            o.opt_bool("auto_start")?.unwrap_or(false),
-            o.opt_str("run_name")?.unwrap_or("srs_shock").to_owned(),
-        ),
+    // Every run is recorded in its run folder (`record`); the module's own
+    // capture is gone, and a configuration that still asks for it is told so
+    // rather than left to believe it is capturing.
+    if !matches!(c.m.get("capture"), None | Some(Value::Null)) {
+        return Err(MethodError::bad_params(
+            "config.capture",
+            "An SRS shock run is always recorded in its run folder; \"capture\" is no longer \
+             taken. Use \"record\" to keep or leave out the streams.",
+        ));
+    }
+    let words =
+        |k: &str| -> Result<String, MethodError> { Ok(c.opt_str(k)?.unwrap_or("").to_owned()) };
+    let (operator, article, notes) = (words("operator")?, words("article")?, words("notes")?);
+    let specification = match c.m.get("specification") {
+        None | Some(Value::Null) => None,
+        Some(v) => {
+            let o = Obj::of(v, "config.specification")?;
+            Some((
+                o.opt_str("document")?.unwrap_or("").to_owned(),
+                o.opt_str("clause")?.unwrap_or("").to_owned(),
+            ))
+        }
+    };
+    let record_streams = match c.m.get("record") {
+        None | Some(Value::Null) => true,
+        Some(v) => Obj::of(v, "config.record")?
+            .opt_bool("streams")?
+            .unwrap_or(true),
     };
     let metadata = match c.array("metadata")? {
         None => MetaField::defaults(),
@@ -932,9 +960,12 @@ pub fn parse(config: &Value) -> Result<WireSrs, MethodError> {
         headroom_db,
         limit_channels,
         feasibility,
-        capture_auto_start,
-        capture_run_name,
         metadata,
+        operator,
+        article,
+        notes,
+        specification,
+        record_streams,
         raw: config.clone(),
     })
 }
@@ -1180,18 +1211,38 @@ impl WireSrs {
             nfft: usize::try_from(self.sysid_nfft).unwrap_or(usize::MAX),
             h_floor_frac: self.h_floor_frac,
         });
+        // The run's record is the one way an SRS shock run records: the
+        // controller's own capture stays off.
         cfg.capture = ShockCaptureRules {
-            trigger: if self.capture_auto_start {
-                ShockCaptureTrigger::EveryPulse
-            } else {
-                ShockCaptureTrigger::Off
-            },
+            trigger: ShockCaptureTrigger::Off,
             snapshot_on_stop: false,
         };
         cfg.compute_pvss = self.pvss;
         cfg.ring_out_s = self.ring_out_s;
         cfg.review_after_sysid = self.review;
         cfg.metadata = self.metadata.clone();
+        // The operator's words travel with the controller's configuration too, so
+        // its own report carries them.
+        for field in cfg.metadata.iter_mut() {
+            match field.key.as_str() {
+                "operator" if !self.operator.is_empty() => field.value = self.operator.clone(),
+                "test_article" if !self.article.is_empty() => field.value = self.article.clone(),
+                _ => {}
+            }
+        }
+        if !self.notes.is_empty() {
+            cfg.metadata
+                .push(MetaField::new("notes", "Notes", self.notes.clone()));
+        }
+        if let Some((document, clause)) = &self.specification {
+            cfg.metadata.push(MetaField::new(
+                "specification",
+                "Specification",
+                document.clone(),
+            ));
+            cfg.metadata
+                .push(MetaField::new("clause", "Clause", clause.clone()));
+        }
         cfg.control = Some(self.control());
         cfg
     }

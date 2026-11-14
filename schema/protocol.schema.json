@@ -5391,6 +5391,13 @@
             "null"
           ]
         },
+        "operator": {"type": "string"},
+        "article": {"type": "string"},
+        "notes": {"type": "string"},
+        "specification": {"type": ["object", "null"], "additionalProperties": false,
+                          "properties": {"document": {"type": "string"}, "clause": {"type": "string"}}},
+        "record": {"type": ["object", "null"], "additionalProperties": false,
+                   "properties": {"streams": {"type": "boolean"}}},
         "target": {
           "$ref": "#/$defs/srsTarget"
         },
@@ -5906,31 +5913,6 @@
                 "residual_disp_in": {
                   "type": [
                     "number",
-                    "null"
-                  ]
-                }
-              }
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "capture": {
-          "oneOf": [
-            {
-              "type": "object",
-              "additionalProperties": false,
-              "properties": {
-                "auto_start": {
-                  "type": [
-                    "boolean",
-                    "null"
-                  ]
-                },
-                "run_name": {
-                  "type": [
-                    "string",
                     "null"
                   ]
                 }
@@ -7180,7 +7162,8 @@
         },
         "end": {
           "$ref": "#/$defs/srsEnd"
-        }
+        },
+        "record": {"$ref": "#/$defs/runRecordRef"}
       },
       "allOf": [
         {

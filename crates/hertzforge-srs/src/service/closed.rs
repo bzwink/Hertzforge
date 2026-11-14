@@ -206,6 +206,10 @@ pub struct IdentificationView {
     /// `|H|`, EU per volt (scaled by any identification error the run asks
     /// for).
     pub h_mag: Vec<f64>,
+    /// The complex estimate `(re, im)`, drive to control response, whose
+    /// modulus is `h_mag`: what the run's record keeps. Nothing in the control
+    /// reads it.
+    pub h: Vec<(f64, f64)>,
     /// Coherence, 0 to 1.
     pub coherence: Vec<f64>,
     /// The floor `|H|` is held at before the seed divides by it, EU per volt.
@@ -305,6 +309,7 @@ impl SrsShockService {
         Some(IdentificationView {
             freqs_hz: frf.freqs_hz.clone(),
             h_mag: frf.mag.clone(),
+            h: frf.h.clone(),
             coherence: frf.coherence.clone(),
             h_floor: self.h_floor(spec.h_floor_frac),
             band_hz: (self.cfg.f_lo_hz, self.cfg.f_hi_hz),

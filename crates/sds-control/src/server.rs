@@ -1600,8 +1600,11 @@ impl Service {
                 if s.view().state.is_live() {
                     s.hold(true);
                     let name = inner.session.client_name(conn.id, &conn.peer);
-                    s.shared
-                        .add_log("note", format!("{name} left control; firing is held"));
+                    s.shared.add_log_data(
+                        "note",
+                        format!("{name} left control; firing is held"),
+                        Some(json!({"action": "hold", "by": name})),
+                    );
                 }
             }
             if let Some(s) = &inner.mimo_shock {
@@ -2011,8 +2014,11 @@ impl Service {
             if s.shared.signals.held() {
                 s.hold(false);
                 let who = inner.session.client_name(conn.id, &conn.peer);
-                s.shared
-                    .add_log("note", format!("{who} holds control; firing resumes"));
+                s.shared.add_log_data(
+                    "note",
+                    format!("{who} holds control; firing resumes"),
+                    Some(json!({"action": "resume", "by": who})),
+                );
             }
         }
         if let Some(s) = &inner.mimo_shock {
