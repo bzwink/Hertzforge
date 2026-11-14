@@ -199,23 +199,16 @@ def _parts_holding(geometry: Any, ids: Any) -> set[int]:
 
 
 def _result(name: str, geometry: Any, title: str, rows: list[dict],
-            picked: list[int] | None = None, quiet: bool = False) -> list[dict]:
-    """What a solids operation answers with: what it did, and the geometry
-    drawn. The solids `picked` (one added or edited) are highlighted and
-    carry the gimbal. A `quiet` one says what it did only when something
-    warns: adding or editing a solid shows it drawn, which says the rest
-    (Brandon, 2026-11-13)."""
+            picked: list[int] | None = None) -> list[dict]:
+    """What a solids operation answers with: the geometry drawn, and what it
+    did only where something warns or fails, those rows alone. The drawing
+    says the rest (Brandon, 2026-11-13 and 11-14). The solids `picked` (one
+    added or edited) are highlighted and carry the gimbal."""
     view, notes = _drawn(name, geometry, highlight=picked or ())
     if picked:
         view['gizmo'] = _solids_gizmo(name, geometry, picked)
-    said = rows + notes
-    if quiet and not any(row['status'] in ('warn', 'fail') for row in said):
-        return [view]
-    return [v.reading(title, said), view]
-
-
-def _parts_row(geometry: Any) -> dict:
-    return v.row('Parts', float(len(_parts(geometry))), '', 'info')
+    said = [row for row in rows + notes if row['status'] in ('warn', 'fail')]
+    return [v.reading(title, said), view] if said else [view]
 
 
 # ---- New Geometry and Solids ---------------------------------------------------
@@ -258,7 +251,7 @@ def part_solids(name: str, geometry: Any, ids: list[int] | None = None) -> list[
 def view_solids(project: Any, params: dict[str, Any]) -> list[dict]:
     """`project.solids`: a geometry's solids drawn; it changes nothing."""
     name, geometry = _geometry(project, params)
-    return _result(name, geometry, name, [], quiet=True)
+    return _result(name, geometry, name, [])
 
 
 # ---- adding a solid -------------------------------------------------------------
@@ -384,7 +377,7 @@ def _edited(project: Any, name: str, geometry: Any, params: dict[str, Any],
                   'pass' if changes else 'info')]
     if geometry.num_nodes:
         rows.append(v.row('Mesh', 'Mesh Solids again to mesh the change', None, 'info'))
-    return _result(name, geometry, f'Edited {name}', rows, [solid_id], quiet=True)
+    return _result(name, geometry, f'Edited {name}', rows, [solid_id])
 
 
 def _add(project: Any, params: dict[str, Any], make: Callable[[str], int],
@@ -410,8 +403,7 @@ def _add(project: Any, params: dict[str, Any], make: Callable[[str], int],
                               'm³' if geometry.units_defined else None, 'info'))
     except ValueError as error:
         rows.append(v.row('Volume', f'not read: {error}', None, 'warn'))
-    rows.append(_parts_row(geometry))
-    return _result(name, geometry, f'Added to {name}', rows, [new], quiet=True)
+    return _result(name, geometry, f'Added to {name}', rows, [new])
 
 
 def add_solid_block(project: Any, params: dict[str, Any]) -> list[dict]:
@@ -538,7 +530,7 @@ def edit_solid(project: Any, params: dict[str, Any]) -> list[dict]:
                   None, 'pass')]
     if geometry.num_nodes:
         rows.append(v.row('Mesh', 'Mesh Solids again to mesh the change', None, 'info'))
-    return _result(name, geometry, f'Edited {name}', rows, quiet=True)
+    return _result(name, geometry, f'Edited {name}', rows)
 
 
 OFFSET = tuple(_length(f'offset_{axis}', f'Move along {axis.upper()}', 0.0) for axis in 'xyz')
@@ -553,12 +545,10 @@ def move_solids(project: Any, params: dict[str, Any]) -> list[dict]:
     ids = _ids(geometry, params['solids'])
     offset = tuple(params[f'offset_{a}'] for a in 'xyz')
     turn = _angles(params, 'turn')
-    said = 'nothing yet: type how far, or drag an arrow or a ring'
     if any(offset) or any(turn):
-        moved = _call(lambda: project.move_solids(name, ids, offset, turn))
-        said = f'{", ".join(map(str, ids))}: {moved} solids with what they are made of'
-    views = _result(name, geometry, f'Moved in {name}', [v.row('Moved', said, None, 'pass')])
-    views[1]['gizmo'] = _solids_gizmo(name, geometry, ids)
+        _call(lambda: project.move_solids(name, ids, offset, turn))
+    views = _result(name, geometry, f'Moved in {name}', [])
+    views[-1]['gizmo'] = _solids_gizmo(name, geometry, ids)
     return views
 
 
@@ -586,11 +576,8 @@ def copy_solids(project: Any, params: dict[str, Any]) -> list[dict]:
     name, geometry = _geometry(project, params)
     ids = _ids(geometry, params['solids'])
     into = params['into']
-    made = _call(lambda: project.copy_solids(name, ids, into=into))
-    target = project[into]
-    return _result(into, target, f'Copied into {into}', [
-        v.row('Copied', f'{", ".join(map(str, ids))} as {", ".join(map(str, made))}',
-              None, 'pass'), _parts_row(target)])
+    _call(lambda: project.copy_solids(name, ids, into=into))
+    return _result(into, project[into], f'Copied into {into}', [])
 
 
 WITHIN = Param('within', 'Within (a boolean\'s or pattern\'s id; 0 for the parts)',
@@ -605,9 +592,7 @@ def reorder_solids(project: Any, params: dict[str, Any]) -> list[dict]:
     ids = _ids(geometry, params['solids'])
     within = params['within'] or None
     _call(lambda: project.reorder_solids(name, ids, within=within))
-    where = f'solid {within}\'s solids' if within else 'the parts'
-    return _result(name, geometry, f'Reordered in {name}', [
-        v.row('Order', f'{where}: {", ".join(map(str, ids))}', None, 'pass')])
+    return _result(name, geometry, f'Reordered in {name}', [])
 
 
 OPERATION = Param('operation', 'Operation', 'enum', default='union', options=(
@@ -619,20 +604,11 @@ def combine_solids(project: Any, params: dict[str, Any]) -> list[dict]:
     """`project.combine_solids`: two or more parts made one by a union, a
     subtraction of the rest from the first, or an intersection
     (`Project.combine_solids`)."""
-    from hertzforge.core import solids
-
     name, geometry = _geometry(project, params)
     ids = _ids(geometry, params['solids'])
-    new = _call(lambda: project.combine_solids(name, params['operation'], ids,
-                                               params['name'].strip()))
-    rows = [v.row('Made', f'{_label(solids.solid(geometry, new))}, solid {new}, of '
-                  f'{", ".join(map(str, ids))}', None, 'pass')]
-    try:
-        rows.append(v.row('Volume', solids.volume(geometry, new),
-                          'm³' if geometry.units_defined else None, 'info'))
-    except ValueError as error:
-        rows.append(v.row('Volume', f'not read: {error}', None, 'warn'))
-    return _result(name, geometry, f'Combined in {name}', [*rows, _parts_row(geometry)])
+    _call(lambda: project.combine_solids(name, params['operation'], ids,
+                                         params['name'].strip()))
+    return _result(name, geometry, f'Combined in {name}', [])
 
 
 def separate_solids(project: Any, params: dict[str, Any]) -> list[dict]:
@@ -641,10 +617,8 @@ def separate_solids(project: Any, params: dict[str, Any]) -> list[dict]:
     Take Apart."""
     name, geometry = _geometry(project, params)
     ids = _ids(geometry, params['solids'])
-    freed = _call(lambda: project.separate_solids(name, ids))
-    return _result(name, geometry, f'Taken apart in {name}', [
-        v.row('Taken apart', f'{", ".join(map(str, ids))} into {freed} solids', None,
-              'pass'), _parts_row(geometry)])
+    _call(lambda: project.separate_solids(name, ids))
+    return _result(name, geometry, f'Taken apart in {name}', [])
 
 
 def delete_solids(project: Any, params: dict[str, Any]) -> list[dict]:
@@ -652,9 +626,8 @@ def delete_solids(project: Any, params: dict[str, Any]) -> list[dict]:
     made of (`Project.delete_solids`); a mesh made from them stays."""
     name, geometry = _geometry(project, params)
     ids = _ids(geometry, params['solids'])
-    gone = _call(lambda: project.delete_solids(name, ids))
-    return _result(name, geometry, f'Deleted from {name}', [
-        v.row('Deleted', f'{gone} solids', None, 'pass'), _parts_row(geometry)])
+    _call(lambda: project.delete_solids(name, ids))
+    return _result(name, geometry, f'Deleted from {name}', [])
 
 
 COUNTS = tuple(Param(f'count_{axis}', f'How many along {axis.upper()}', 'integer',
@@ -675,10 +648,7 @@ def pattern_solids(project: Any, params: dict[str, Any]) -> list[dict]:
         raise refused('one of each along every axis: no copies yet')
     made = _call(lambda: project.pattern_solids(
         name, ids, counts, [params[f'spacing_{a}'] for a in 'xyz']))
-    total = len(ids) * copies
-    return _result(name, geometry, f'Patterned in {name}', [
-        v.row('Made', f'pattern {made}', None, 'pass'),
-        v.row('Copies', float(total), '', 'info'), _parts_row(geometry)], [made])
+    return _result(name, geometry, f'Patterned in {name}', [], [made])
 
 
 # ---- Mesh Solids ----------------------------------------------------------------
@@ -886,7 +856,7 @@ def mesh_solids(project: Any, params: dict[str, Any]) -> list[dict]:
         elif params['detect']:
             likely = _likely_of_piece(geometry, ids, plan[0])
             said.append(v.row('Detect', f'these parts mesh as one, likely to hold at '
-                              f'{likely:.4g}{_in_meters(geometry)}', None, 'info'))
+                              f'{likely:.4g}{_in_meters(geometry)}', None, 'warn'))
         fold = _call(lambda: _fold_check(geometry, ids, size, sizes))
     if fold:
         said.append(v.row('Fit', fold, None, 'warn'))
@@ -1111,14 +1081,13 @@ def mate_surfaces(project: Any, params: dict[str, Any]) -> list[dict]:
             if changes:
                 _call(lambda: project.edit_mated_surfaces(name, mated.id, **changes))
             (mated,) = [m for m in geometry.mates if m.id == params['mate']]
-            rows.append(v.row('Saved', f'{mated.name} ({mated.describe()})', None, 'pass'))
+        elif every:
+            for p in found:
+                _call(lambda p=p: project.add_mated_surfaces(
+                    name, p['groups'], p['nodes_a'], p['nodes_b'], **held))
         else:
-            kept = [_call(lambda p=p: project.add_mated_surfaces(
-                        name, p['groups'], p['nodes_a'], p['nodes_b'], **held))
-                    for p in found] if every else [_call(lambda: project.add_mated_surfaces(
-                        name, groups, held_a, held_b, name=label, **held))]
-            rows.append(v.row('Kept', ', '.join(m.name for m in geometry.mates if m.id in kept),
-                              None, 'pass'))
+            _call(lambda: project.add_mated_surfaces(name, groups, held_a, held_b,
+                                                     name=label, **held))
     side = 'b' if params['side'] == 'b' and not every else 'a'
     what = mated.name if mated is not None else f'{first} on {second}'
     picked = {'geometry': name, 'mate': params['mate'], 'groups': params['groups'],
@@ -1134,8 +1103,8 @@ def mate_surfaces(project: Any, params: dict[str, Any]) -> list[dict]:
     view = sides_view(geometry, f'{what}, {"second" if side == "b" else "first"} side',
                       'project.mate_surfaces', picked, sides[0], sides[1], hint,
                       pickable=not every)
-    return [v.reading(f'Mate Surfaces of {name}', rows), *views, view,
-            _mates_table(name, geometry)]
+    said = [] if params['keep'] else [v.reading(f'Mate Surfaces of {name}', rows)]
+    return [*said, *views, view, _mates_table(name, geometry)]
 
 
 
@@ -1155,9 +1124,8 @@ def delete_mated_surfaces(project: Any, params: dict[str, Any]) -> list[dict]:
     if wrong:
         raise refused(f'the geometry has mated surfaces {", ".join(map(str, known)) or "none"}; '
                       f'not {wrong[0]}')
-    gone = project.delete_mated_surfaces(name, ids)
-    return [v.reading(f'Mated surfaces of {name}', [
-        v.row('Deleted', float(gone), 'sets', 'pass')]), _mates_table(name, geometry)]
+    project.delete_mated_surfaces(name, ids)
+    return [_mates_table(name, geometry)]
 
 
 # ---- Set Default View -----------------------------------------------------------
@@ -1180,13 +1148,7 @@ def set_view(project: Any, params: dict[str, Any]) -> list[dict]:
     up = tuple(params[f'up_{a}'] for a in 'xyz')
     view = None if not any(eye) else _call(lambda: View(eye=eye, up=up))
     project.set_view(name, view)
-    held = geometry.view
-    if held is None:
-        rows = [v.row('View', 'the default: from +X+Y+Z, Z up', None, 'pass')]
-    else:
-        rows = [v.row('Eye', ', '.join(_f(c) for c in held.eye), None, 'pass'),
-                v.row('Up', ', '.join(_f(c) for c in held.up), None, 'info')]
-    return [v.reading(f'Default view of {name}', rows), _drawn(name, geometry)[0]]
+    return [_drawn(name, geometry)[0]]
 
 
 OPERATIONS = (
