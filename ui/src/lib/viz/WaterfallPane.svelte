@@ -755,8 +755,10 @@
 	// the level axis stands at the back right, where a spectrum's levels are usually lowest, so
 	// the curves rarely pass in front of its labels
 	const zAt = (t: number) => `${STAGE.x + 0.02},${STAGE.y},${fraction(t, zRange, logZ) * STAGE.z}`;
-	const recordAt = (r: number) => `${STAGE.x + 0.03},${stationCount > 1 ? (r / (stationCount - 1)) * STAGE.y : 0},0`;
-	const yAt = (t: number) => `${STAGE.x + 0.03},${((t - yRange[0]) / (yRange[1] - yRange[0])) * STAGE.y},0`;
+	// the records are named at the low end of the abscissa, as the earlier toolset named them
+	// (Brandon, 2026-11-14)
+	const recordAt = (r: number) => `${-0.03},${stationCount > 1 ? (r / (stationCount - 1)) * STAGE.y : 0},0`;
+	const yAt = (t: number) => `${-0.03},${((t - yRange[0]) / (yRange[1] - yRange[0])) * STAGE.y},0`;
 	/** A path is named where it starts, a little above its first point. */
 	const pathStart = (r: number) => {
 		const p = view.offsets[r];
@@ -816,16 +818,16 @@
 		{/if}
 		{#if pathed}
 			{#each yTicks as t (t)}
-				<span class="tick rec num" data-at={yAt(t)}>{tickText(t)}</span>
+				<span class="tick rec low num" data-at={yAt(t)}>{tickText(t)}</span>
 			{/each}
 			{#each view.records as label, r (r)}
 				{@const at = pathStart(r)}
 				{#if at}<span class="tick rec" data-at={at}>{label}</span>{/if}
 			{/each}
-			{#if view.y}<span class="tick rec" data-at="{STAGE.x + 0.03},{STAGE.y * 1.08},0">{withUnit(view.y.label, view.y.unit)}</span>{/if}
+			{#if view.y}<span class="tick rec low" data-at="{-0.03},{STAGE.y * 1.08},0">{withUnit(view.y.label, view.y.unit)}</span>{/if}
 		{:else}
 			{#each named as r (r)}
-				<span class="tick rec" data-at={recordAt(r)}>{depthLabels[r]}</span>
+				<span class="tick rec low" data-at={recordAt(r)}>{depthLabels[r]}</span>
 			{/each}
 		{/if}
 		{#each view.regions ?? [] as r, i (i)}
@@ -970,6 +972,11 @@
 	.tick.rec {
 		translate: 4px -50%;
 		color: var(--text-3);
+	}
+
+	/* at the low end of the abscissa a label ends at its point, clear of the stage */
+	.tick.rec.low {
+		translate: calc(-100% - 4px) -50%;
 	}
 
 	.title {
