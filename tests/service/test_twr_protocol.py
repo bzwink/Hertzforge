@@ -106,7 +106,12 @@ def test_a_configuration_carries_every_field_and_the_ceiling_is_required(validat
     config = _text('request_twr_configure')['params']['config']
     assert set(config) == {'title', 'reference', 'prep', 'section', 'pads', 'acquisition',
                            'identification', 'inverse', 'correction', 'control', 'schedule',
-                           'run', 'adaptation', 'limits', 'feasibility', 'capture', 'metadata'}
+                           'run', 'adaptation', 'limits', 'feasibility', 'operator', 'article',
+                           'notes', 'specification', 'record', 'metadata'}
+    # one way to record: the module's own capture is not a member any more
+    bad = copy.deepcopy(config)
+    bad['capture'] = {'auto_start': True, 'run_name': 'twr_run'}
+    _refused(validate, bad, 'twrConfig')
     bad = copy.deepcopy(config)
     del bad['limits']['drive_vpk_ceiling']
     _refused(validate, bad, 'twrConfig')

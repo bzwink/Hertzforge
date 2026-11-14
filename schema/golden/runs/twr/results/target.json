@@ -1,0 +1,41 @@
+{
+  "name": "target",
+  "kind": "transient_reference",
+  "abscissa": {
+    "kind": "time",
+    "unit": "s",
+    "array": "time"
+  },
+  "channels": {
+    "responses": [
+      1
+    ]
+  },
+  "fs_hz": 2048,
+  "section_start": 32,
+  "section_len": 160,
+  "peak": 0.5517070764190194,
+  "alarm_frac": 0.25,
+  "abort_frac": 0.5,
+  "description": "the target at full level: the prepared section on the record's samples with its pads, time from the section's start; a play at a level is judged against it scaled to the level, its alarm and abort bands that share of the peak either side",
+  "arrays": [
+    {
+      "name": "time",
+      "dtype": "f8",
+      "shape": [
+        256
+      ],
+      "unit": "s",
+      "offset": 0
+    },
+    {
+      "name": "reference",
+      "dtype": "f8",
+      "shape": [
+        256
+      ],
+      "unit": "g",
+      "offset": 2048
+    }
+  ]
+}

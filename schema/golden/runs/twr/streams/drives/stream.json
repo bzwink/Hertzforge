@@ -1,0 +1,95 @@
+{
+  "kind": "drives",
+  "fs_hz": 2048,
+  "channels": [
+    {
+      "index": 3,
+      "unit": "V",
+      "description": "Drive"
+    }
+  ],
+  "first_station_frame": 0,
+  "output_latency_frames": {
+    "frames": 4,
+    "how": "declared"
+  },
+  "pipeline_lag_frames": {
+    "frames": 0,
+    "how": "measured"
+  },
+  "name": "drives",
+  "frames": 640,
+  "gaps": [],
+  "complete": true,
+  "fault": null,
+  "shots": [
+    {
+      "first_station_frame": 0,
+      "first_frame": 0,
+      "frames": 128,
+      "what": "identification",
+      "play": null,
+      "level_db": null,
+      "pre_frames": 0,
+      "station_frame": 0,
+      "cut_from_frames": 2048
+    },
+    {
+      "first_station_frame": 2048,
+      "first_frame": 128,
+      "frames": 128,
+      "what": "play",
+      "play": 0,
+      "kind": "iteration",
+      "iteration": 1,
+      "level_db": -6,
+      "outcome": "judged",
+      "pre_frames": 32,
+      "station_frame": 2080,
+      "cut_from_frames": 1280
+    },
+    {
+      "first_station_frame": 3328,
+      "first_frame": 256,
+      "frames": 128,
+      "what": "play",
+      "play": 1,
+      "kind": "iteration",
+      "iteration": 2,
+      "level_db": -6,
+      "outcome": "judged",
+      "pre_frames": 32,
+      "station_frame": 3360,
+      "cut_from_frames": 1280
+    },
+    {
+      "first_station_frame": 4608,
+      "first_frame": 384,
+      "frames": 128,
+      "what": "play",
+      "play": 2,
+      "kind": "iteration",
+      "iteration": 1,
+      "level_db": 0,
+      "outcome": "judged",
+      "pre_frames": 32,
+      "station_frame": 4640,
+      "cut_from_frames": 1280
+    },
+    {
+      "first_station_frame": 5888,
+      "first_frame": 512,
+      "frames": 128,
+      "what": "play",
+      "play": 3,
+      "kind": "playback",
+      "iteration": null,
+      "level_db": 0,
+      "outcome": "judged",
+      "pre_frames": 32,
+      "station_frame": 5920,
+      "cut_from_frames": 1280
+    }
+  ],
+  "cut_from_frames": 7168
+}

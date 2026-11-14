@@ -3,7 +3,7 @@
 `convert` reads a run folder (`hertzforge.io.run_folder`) and writes a
 `.hforge` project every analysis tool opens with `Project.open`, by
 default `<run name>.hforge` inside the folder. The control service's
-Random, Sine, Classical Shock and SRS shock modules and its Recorder
+Random, Sine, Classical Shock, SRS shock and TWR modules and its Recorder
 write a run folder for every run; the other control modules do not yet.
 This is the analysis side of that bridge.
 
@@ -18,8 +18,10 @@ The project holds, in this order:
   A recording's time is measured from its trigger, so its pre-trigger
   samples are at negative times; a pulse module's stream is one record
   per shot, timed from its firing, with a history for each kind of shot
-  (a shock run's identification, its pulses); a shot that holds no
-  frames (a pulse withheld before it played) is no record. The samples are
+  (a shock run's identification, its pulses; a TWR run's identification,
+  its plays, each timed from its section's start, and a play cut short in
+  a history of its own); a shot that holds no frames (a pulse withheld
+  before it played) is no record. The samples are
   copied a block at a time, float32 as recorded
   (`native.StreamedHistory`);
 - the `Specification` a Random run was controlled to, from the setup's
@@ -42,6 +44,10 @@ The project holds, in this order:
   `ShockSpecification` per result of kind `srs_reference`, its band as
   the warning limits and its abort band (where it has one) as the abort
   limits, in SI at the result's Q;
+- the `TransientSpecification` a TWR run was controlled to, from its
+  result of kind `transient_reference` (the prepared section between its
+  pads at full level, time from the section's start), in SI; it has no
+  limits, so its alarm and abort shares stay in the result's description;
 - the `RunRecord`: the manifest, the table and setup as written, the
   law, the log, the end, each stream's and result's description, the
   arrays of results no analysis class holds, and what the folder
@@ -77,12 +83,14 @@ PROJECT_TYPES = {'random': 'Random Vibration', 'mimo_random': 'Random Vibration'
 
 #: the result kinds that become an analysis object; any other is kept in
 #: the run record as named arrays
-ANALYSIS_KINDS = ('psd', 'cpsd', 'frf', 'coherence', 'srs', 'srs_reference', 'sine_levels')
+ANALYSIS_KINDS = ('psd', 'cpsd', 'frf', 'coherence', 'srs', 'srs_reference', 'sine_levels',
+                  'transient_reference')
 
 #: the arrays of a result kind its analysis object holds (its abscissa
 #: besides); the rest are kept in the run record
 _HELD_ARRAYS = {'srs_reference': ('reference', 'band_low', 'band_high', 'abort_low',
-                                   'abort_high')}
+                                   'abort_high'),
+                'transient_reference': ('reference',)}
 
 #: the name of the one tone a Sine run's specification and levels hold
 SINE_TONE = 'Tone 1'
@@ -427,10 +435,14 @@ def _shot_spans(stream: run_folder.Stream
 
 
 def _shot_label(k: int, shot: Mapping[str, Any]) -> str:
-    """A shot's record label: its pulse ('pulse 3') where it names one,
-    else its place in the stream ('shot 1')."""
-    pulse = shot.get('pulse')
-    return f'pulse {pulse + 1}' if isinstance(pulse, int) else f'shot {k + 1}'
+    """A shot's record label: its pulse ('pulse 3') or its play ('play
+    3') where it names one, counted from 1, else its place in the stream
+    ('shot 1')."""
+    for name in ('pulse', 'play'):
+        number = shot.get(name)
+        if isinstance(number, int) and not isinstance(number, bool):
+            return f'{name} {number + 1}'
+    return f'shot {k + 1}'
 
 
 def _shot_groups(spans: Sequence[tuple[int, int, float, Any, Mapping[str, Any]]]
@@ -503,9 +515,13 @@ def _histories(run: run_folder.RunFolder, table: Any, lacked: list[str],
         whats = [str(spans[g[0]][4].get('what') or '') for g in groups]
         for members, what in zip(groups, whats, strict=True):
             labels = [_shot_label(k, spans[k][4]) for k in members]
-            said = [label + (f' ({what})' if what and what != 'pulse' else '')
+            said = [label + (f' ({what})' if what and what not in ('pulse', 'play') else '')
+                    + (f' ({spans[k][4]["kind"]})' if isinstance(spans[k][4].get('kind'), str)
+                       else '')
                     + (f' at {level_text(float(spans[k][3]))}'
                        if isinstance(spans[k][3], (int, float)) else '')
+                    + (f', {spans[k][4]["outcome"]}'
+                       if spans[k][4].get('outcome') not in (None, 'judged') else '')
                     for k, label in zip(members, labels, strict=True)]
             comments = ['; '.join(part for part in (shot, note) if part)
                         for _c in range(width) for shot in said]
@@ -905,6 +921,34 @@ def _srs_object(result: run_folder.Result, table: Any,
     return ShockSpecification(**kwargs, **limits), ''
 
 
+def _transient_specification(result: run_folder.Result, table: Any,
+                             units: Mapping[int, str]) -> tuple[Any, str]:
+    """A TWR run's target as the analysis holds a required waveform, or
+    (None, why not): a `TransientSpecification` of its control channel,
+    in SI, against time from the section's start."""
+    from ..core.data import TransientSpecification
+    from ..units import UNKNOWN
+
+    channels = result.description.get('channels') or {}
+    responses = [int(i) for i in channels.get('responses') or []]
+    if len(responses) != 1 or responses[0] not in units:
+        return None, 'it does not name one response channel the table holds'
+    if 'reference' not in result.arrays:
+        return None, 'it holds no array named reference'
+    values = np.asarray(result.arrays['reference'], dtype=np.float64).reshape(-1)
+    abscissa = _abscissa(result, len(values))
+    if abscissa is None or len(abscissa) != len(values):
+        return None, 'its abscissa is not stated, or not as long as its values'
+    channel = responses[0]
+    scale, dim, unit = _unit_scale(units[channel])
+    known = dim != UNKNOWN
+    dof = table.dof_strings()[{int(i): k for k, i in enumerate(table['channel'])}[channel]]
+    return TransientSpecification(
+        abscissa, values[np.newaxis] * (scale if known else 1.0), response_dof=[dof],
+        ordinate_dim=[dim], ordinate_unit=[unit if known else None],
+        comment=result.description.get('description', '') or result.name), ''
+
+
 # ---- the conversion ----------------------------------------------------
 
 def default_output(folder: str | os.PathLike) -> str:
@@ -993,6 +1037,19 @@ def convert(path: str | os.PathLike, output: str | os.PathLike | None = None,
                 objects[_unique('Sine Levels', objects)] = held
                 unmapped[name] = dict(result.arrays)
                 continue
+            unmapped[name] = dict(result.arrays)
+            continue
+        if result.kind == 'transient_reference':
+            held, why = _transient_specification(result, table, units)
+            if held is not None:
+                # a target, not a measurement: it carries no source label
+                objects[_unique('Specification', objects)] = held
+                extra = {k: v for k, v in result.arrays.items()
+                         if k not in ('reference', 'time')}
+                if extra:
+                    unmapped[name] = extra
+                continue
+            lacked.append(f'the result {name!r} is kept as arrays in the run record: {why}')
             unmapped[name] = dict(result.arrays)
             continue
         if result.kind in ('srs', 'srs_reference'):

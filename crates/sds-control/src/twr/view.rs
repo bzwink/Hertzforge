@@ -501,7 +501,13 @@ pub struct TwrView {
     pub drive_vpk_ceiling: f64,
     /// The gate, for the readings and the convergence view.
     pub gate_pct: f64,
+    /// The run's record, once it is armed.
+    pub record: Option<RecordRef>,
 }
+
+/// The run's record, from arm on: its folder, whether it holds the streams, and
+/// the latest problem in words.
+pub use crate::random::view::RecordRef;
 
 fn station_json(s: &StationRef) -> Value {
     json!({
@@ -523,7 +529,7 @@ pub fn state_json(v: Option<&TwrView>) -> Value {
             "feasibility": null, "end": null,
         });
     };
-    json!({
+    let mut out = json!({
         "run_id": v.run_id,
         "state": v.state.name(),
         "phase": v.phase,
@@ -558,7 +564,11 @@ pub fn state_json(v: Option<&TwrView>) -> Value {
             json!({"verdict": verdict, "message": message})
         }),
         "end": v.end.as_ref().map_or(Value::Null, End::to_json),
-    })
+    });
+    if let (Some(r), Value::Object(m)) = (&v.record, &mut out) {
+        m.insert("record".into(), r.to_json());
+    }
+    out
 }
 
 /// What decides whether a `twr.state` event is due: everything but the clock.
@@ -1223,6 +1233,7 @@ pub fn configured_view(
         units: units.to_owned(),
         drive_vpk_ceiling: cfg.drive_vpk_ceiling,
         gate_pct: cfg.gate_pct,
+        record: None,
     }
 }
 

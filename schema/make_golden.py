@@ -2321,7 +2321,9 @@ TWR_CONFIG = {
                'divergence_plays': 3, 'divergence_rise_frac': 0.1},
     'feasibility': {'peak_accel': None, 'peak_velocity_ips': None, 'disp_pkpk_in': 1.0,
                     'kinematics_hp_hz': 5},
-    'capture': {'auto_start': False, 'run_name': 'twr_run'},
+    'operator': 'Operator', 'article': 'Bracket', 'notes': '',
+    'specification': {'document': 'Example procedure', 'clause': '4.2'},
+    'record': {'streams': True},
     'metadata': TWR_METADATA,
 }
 

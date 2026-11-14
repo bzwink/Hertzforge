@@ -1,0 +1,113 @@
+{
+  "test": "twr",
+  "run_uid": "golden-twr",
+  "run_id": "twr-0001",
+  "title": "Golden TWR",
+  "operator": "Operator",
+  "article": "Bracket",
+  "notes": "the golden run folder",
+  "specification": {
+    "document": "Example procedure",
+    "clause": "4.2"
+  },
+  "source": "SIM",
+  "sim": {
+    "model": "resonator_bank",
+    "parameters": {
+      "sample_rate_hz": 2048.0,
+      "resonances": [
+        {
+          "f_hz": 200.0,
+          "q": 2.5
+        },
+        {
+          "f_hz": 550.0,
+          "q": 2.5
+        }
+      ],
+      "noise_level": 0.0002,
+      "feedthrough": 0.35,
+      "transport_delay_samples": 0,
+      "inputs": 8,
+      "outputs": 1
+    },
+    "seed": 1515852340
+  },
+  "station": {
+    "kind": "sim",
+    "class": "sim",
+    "label": "HERTZFORGE-SIM",
+    "backend": "hertzforge-hal-sim",
+    "devices": [],
+    "clock": "shared"
+  },
+  "grid": {
+    "requested_fs_hz": 2048,
+    "fs_hz": 2048,
+    "record_len": 256,
+    "section_start": 32,
+    "section_len": 160
+  },
+  "build": {
+    "version": "0.0.0",
+    "commit": "0000000000000000000000000000000000000000",
+    "dirty": false
+  },
+  "armed": {
+    "unix": 1794240000.25,
+    "utc_offset_s": -25200
+  },
+  "start": {
+    "unix": 1794240000.25,
+    "utc_offset_s": -25200,
+    "station_frame": 0
+  },
+  "recording": {
+    "streams": "on"
+  },
+  "schema": "hertzforge-run/1",
+  "streams": [
+    {
+      "name": "inputs",
+      "kind": "inputs",
+      "channels": [
+        1,
+        2
+      ]
+    },
+    {
+      "name": "drives",
+      "kind": "drives",
+      "channels": [
+        3
+      ]
+    }
+  ],
+  "results": [
+    {
+      "name": "reference",
+      "kind": "waveform"
+    },
+    {
+      "name": "target",
+      "kind": "transient_reference"
+    },
+    {
+      "name": "identification_frf",
+      "kind": "frf"
+    },
+    {
+      "name": "identification_coherence",
+      "kind": "coherence"
+    },
+    {
+      "name": "law_calls",
+      "kind": "law_calls"
+    },
+    {
+      "name": "plays",
+      "kind": "play_results"
+    }
+  ],
+  "complete": true
+}

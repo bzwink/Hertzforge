@@ -1,0 +1,17 @@
+{
+  "id": "twr_correct",
+  "name": "frequency-domain correction",
+  "version": "0.1.0",
+  "sha256": null,
+  "builtin": true,
+  "params": {},
+  "guards": {
+    "law_budget": 0.25,
+    "law_misses": 3,
+    "max_peak_rise_db": 10.0,
+    "max_bin_rise_db": 10.0,
+    "first_drive_ratio": 2.0,
+    "alignment_frames": 1.0,
+    "rest_taper": true
+  }
+}
