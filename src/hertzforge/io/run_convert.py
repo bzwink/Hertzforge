@@ -71,7 +71,7 @@ from .rattlesnake import _stream_offsets, _unit_scale
 #: the project type each test is a run of; a test not here sets none
 PROJECT_TYPES = {'random': 'Random Vibration', 'mimo_random': 'Random Vibration',
                  'sine': 'Sine Sweep', 'classical_shock': 'Shock', 'srs': 'Shock',
-                 'mimo_shock': 'Shock', 'twr': 'Transient'}
+                 'mimo_shock': 'Shock', 'twr': 'Transient', 'mixed': 'Random and Sine'}
 
 #: the result kinds that become an analysis object; any other is kept in
 #: the run record as named arrays
@@ -532,7 +532,7 @@ def _specification(run: run_folder.RunFolder, table: Any, lacked: list[str]) -> 
     profile = run.setup.get('resolved', {}).get('profile') if isinstance(
         run.setup.get('resolved'), Mapping) else None
     if not isinstance(profile, Mapping) or not profile.get('breakpoints'):
-        if run.test == 'random':
+        if run.test in ('random', 'mixed'):
             lacked.append('the setup has no resolved profile, so the run has no specification')
         return None
     points = [p for p in profile['breakpoints'] if isinstance(p, Mapping)]
@@ -570,6 +570,95 @@ def _specification(run: run_folder.RunFolder, table: Any, lacked: list[str]) -> 
     spec = draft.make('the Random profile as the control service resolved it')
     spec.ordinate_unit = ['g'] * spec.num_records
     return spec
+
+
+def _mixed_rate(rate: Mapping[str, Any]) -> tuple[float, int]:
+    """A sweep's rate and law as the analysis holds one: Hz/s LINEAR or
+    octaves a minute LOG."""
+    from ..core.sine import LINEAR, LOG
+
+    if rate.get('law') == 'log':
+        return float(rate['oct_per_min']), LOG
+    return float(rate['hz_per_s']), LINEAR
+
+
+def _mixed_span(schedule: Mapping[str, Any]) -> tuple[float, float | None]:
+    """Where a part stands or starts, and where a sweep goes from there
+    (None for a fixed part): one pass in the direction the run started."""
+    if schedule.get('kind') == 'fixed':
+        return float(schedule['freq_hz']), None
+    lo, hi = (float(f) for f in schedule['band_hz'])
+    start = schedule.get('start_hz')
+    down = schedule.get('direction') == 'down'
+    first = float(start) if start is not None else (hi if down else lo)
+    return first, (lo if down else hi)
+
+
+def _mixed_parts(run: run_folder.RunFolder, table: Any, floor: Any,
+                 lacked: list[str]) -> Any:
+    """A Mixed Mode run's tones and narrowbands as the analysis holds
+    them: each narrowband a `Narrowband` on the floor (with the width the
+    service leaves out around each tone, `Specification.tone_exclusion`),
+    and the tones of a constant amplitude, fixed or swept one pass, a
+    `SineSweepSpecification` (`MixedSpecification` puts the two back
+    together). A tone that follows another, a tone whose amplitude is a
+    profile, and a part of no kind the analysis knows have no analysis
+    class: they stay in the setup, and the run says so."""
+    from ..core.mixed_mode import Narrowband, Tone
+    from ..core.sine import SineSweepSpecification
+    from ..units import si_transform
+
+    resolved = run.setup.get('resolved') if isinstance(run.setup.get('resolved'),
+                                                       Mapping) else {}
+    parts = [p for p in resolved.get('parts') or [] if isinstance(p, Mapping)]
+    g = si_transform('g')[0]
+    bands, tones = [], []
+    derived = run.setup.get('derived') if isinstance(run.setup.get('derived'), Mapping) else {}
+    for part in parts:
+        kind, name = part.get('kind'), str(part.get('name') or part.get('id') or '')
+        schedule = part.get('schedule') if isinstance(part.get('schedule'), Mapping) else {}
+        if kind == 'floor':
+            continue
+        if kind not in ('tone', 'narrowband') or schedule.get('kind') not in ('fixed', 'sweep'):
+            how = schedule.get('kind') or kind
+            lacked.append(f'part {name} ({how}) has no analysis class; it stays in the setup')
+            continue
+        start, end = _mixed_span(schedule)
+        rate, mode = _mixed_rate(schedule['rate']) if end is not None else (None, 0)
+        if kind == 'narrowband':
+            alarm = part.get('alarm_db')
+            symmetric = isinstance(alarm, list) and len(alarm) == 2 and alarm[0] == alarm[1]
+            bands.append(Narrowband(
+                start, float(part['level_g2_hz']) * g * g,
+                width=None if part.get('width_hz') is None else float(part['width_hz']),
+                share=None if part.get('width_share') is None else float(part['width_share']),
+                sweep_to=end, rate=rate, mode=mode,
+                tolerance_db=float(alarm[0]) if symmetric else None, name=name))
+            continue
+        if part.get('amplitude_g_pk') is None:
+            lacked.append(f'tone {name}\'s amplitude is a profile, which no tone row holds; it '
+                          'stays in the setup')
+            continue
+        dwell = (schedule.get('end') or {}) if end is None else {}
+        seconds = (float(dwell['seconds']) if 'seconds' in dwell
+                   else float(dwell['cycles']) / start if 'cycles' in dwell
+                   else derived.get('test_s'))
+        if end is None and seconds is None:
+            lacked.append(f'tone {name} holds for no stated time; it stays in the setup')
+            continue
+        tones.append((Tone(start, float(part['amplitude_g_pk']) * g, sweep_to=end, rate=rate,
+                           mode=mode, name=name), seconds))
+    floor.narrowbands = tuple(bands)
+    exclusion = (resolved.get('control') or {}).get('exclusion_hz')
+    if exclusion is not None:
+        floor.tone_exclusion = float(exclusion)
+    if not tones:
+        return None
+    channels = [str(dof) for dof in floor.response_dof]
+    return SineSweepSpecification(
+        [row.sine_tone(seconds, len(channels)) for row, seconds in tones], channels,
+        ordinate_dim='acceleration', ordinate_unit='m/s**2',
+        comment='the Mixed Mode tones as the control service resolved them')
 
 
 def _sine_tone_arrays(run: run_folder.RunFolder, lacked: list[str]) -> Any:
@@ -965,8 +1054,12 @@ def convert(path: str | os.PathLike, output: str | os.PathLike | None = None,
         spec = _sine_specification(run, table, lacked)
     else:
         spec = _specification(run, table, lacked)
+    tones = (_mixed_parts(run, table, spec, lacked)
+             if run.test == 'mixed' and spec is not None else None)
     if spec is not None:
         objects[_unique('Specification', objects)] = spec
+    if tones is not None:
+        objects[_unique('Tones', objects)] = tones
     units = {int(row['index']): str(row.get('units', '') or '') for row in run.rows}
     descriptions: dict[str, dict[str, Any]] = {}
     unmapped: dict[str, dict[str, np.ndarray]] = {}
