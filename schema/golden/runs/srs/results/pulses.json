@@ -1,0 +1,149 @@
+{
+  "name": "pulses",
+  "kind": "pulse_results",
+  "abscissa": {
+    "kind": "none"
+  },
+  "channels": {
+    "responses": [
+      1
+    ]
+  },
+  "description": "each pulse as judged: its levels, drive, kinematics, its worst band against the target, its bands outside the alarm and abort bands, the limit channels' cut, and its verdict (1 pass, 0 fail, NaN not judged)",
+  "records": {
+    "index": "the pulse, from 0",
+    "level_db": "the level fired",
+    "passed": "the verdict: every band inside the alarm band",
+    "law": "the law call whose gains it played",
+    "frame": "the station frame when it was kept",
+    "at_s": "the pulse's start, seconds from the run's start"
+  },
+  "arrays": [
+    {
+      "name": "level_db",
+      "dtype": "f8",
+      "shape": [
+        1
+      ],
+      "unit": "dB",
+      "offset": 0
+    },
+    {
+      "name": "scheduled_db",
+      "dtype": "f8",
+      "shape": [
+        1
+      ],
+      "unit": "dB",
+      "offset": 8
+    },
+    {
+      "name": "limit_scale",
+      "dtype": "f8",
+      "shape": [
+        1
+      ],
+      "unit": "",
+      "offset": 16
+    },
+    {
+      "name": "drive_peak",
+      "dtype": "f8",
+      "shape": [
+        1
+      ],
+      "unit": "V",
+      "offset": 24
+    },
+    {
+      "name": "peak",
+      "dtype": "f8",
+      "shape": [
+        1
+      ],
+      "unit": "g",
+      "offset": 32
+    },
+    {
+      "name": "peak_velocity",
+      "dtype": "f8",
+      "shape": [
+        1
+      ],
+      "unit": "in/s",
+      "offset": 40
+    },
+    {
+      "name": "displacement_pk_pk",
+      "dtype": "f8",
+      "shape": [
+        1
+      ],
+      "unit": "in",
+      "offset": 48
+    },
+    {
+      "name": "worst_error",
+      "dtype": "f8",
+      "shape": [
+        1
+      ],
+      "unit": "dB",
+      "offset": 56
+    },
+    {
+      "name": "worst_band",
+      "dtype": "f8",
+      "shape": [
+        1
+      ],
+      "unit": "Hz",
+      "offset": 64
+    },
+    {
+      "name": "alarm_bands",
+      "dtype": "f8",
+      "shape": [
+        1
+      ],
+      "unit": "",
+      "offset": 72
+    },
+    {
+      "name": "abort_bands",
+      "dtype": "f8",
+      "shape": [
+        1
+      ],
+      "unit": "",
+      "offset": 80
+    },
+    {
+      "name": "passed",
+      "dtype": "f8",
+      "shape": [
+        1
+      ],
+      "unit": "",
+      "offset": 88
+    },
+    {
+      "name": "limited_components",
+      "dtype": "f8",
+      "shape": [
+        1
+      ],
+      "unit": "",
+      "offset": 96
+    },
+    {
+      "name": "worst_limit",
+      "dtype": "f8",
+      "shape": [
+        1
+      ],
+      "unit": "dB",
+      "offset": 104
+    }
+  ]
+}

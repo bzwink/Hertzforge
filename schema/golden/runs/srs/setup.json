@@ -1,0 +1,296 @@
+{
+  "config": {
+    "title": "Golden SRS",
+    "operator": "Operator",
+    "article": "Bracket",
+    "notes": "the golden run folder",
+    "specification": {
+      "document": "Example procedure",
+      "clause": "4.2"
+    },
+    "target": {
+      "kind": "flat",
+      "accel_g": 2
+    },
+    "bands": {
+      "f_lo_hz": 200,
+      "f_hi_hz": 800,
+      "bands_per_octave": 3,
+      "q": 10
+    },
+    "acquisition": {
+      "fs_hz": 2048,
+      "ring_out_s": 0.02
+    },
+    "schedule": {
+      "mode": "auto",
+      "levels_db": [
+        -6,
+        0
+      ],
+      "pulses": [
+        1,
+        1
+      ],
+      "advance": "count"
+    },
+    "spacing": {
+      "cooling_s": 0.05,
+      "settling_s": 0,
+      "compute_s": 0
+    },
+    "identification": {
+      "nfft": 256,
+      "review": false
+    },
+    "limits": {
+      "drive_vpk_ceiling": 5,
+      "drive_vpk_abort": 8
+    }
+  },
+  "resolved": {
+    "target": {
+      "kind": "flat",
+      "accel_g": 2
+    },
+    "bands": {
+      "f_lo_hz": 200,
+      "f_hi_hz": 800,
+      "bands_per_octave": 3,
+      "q": 10,
+      "kind": "maximax",
+      "centres_hz": [
+        200,
+        251.98420997897463,
+        317.4802103936399,
+        400,
+        503.96841995794927,
+        634.9604207872798,
+        800
+      ],
+      "target_g": [
+        2,
+        2,
+        2,
+        2,
+        2,
+        2,
+        2
+      ]
+    },
+    "envelope": {
+      "alarm_db": [
+        3,
+        3
+      ],
+      "abort_db": [
+        9,
+        6
+      ],
+      "per_band": null
+    },
+    "synthesis": {
+      "engine": "wavsyn",
+      "components": null,
+      "max_iters": 50,
+      "tol_db": 1.5,
+      "max_gain_db_per_iter": 3,
+      "fs_hz": 2048,
+      "result": {
+        "engine": "wavsyn",
+        "components": 7,
+        "iters": 4,
+        "converged": true,
+        "worst_err_db": 1.334,
+        "duration_s": 0.06885
+      },
+      "pulse": {
+        "peak_g": 0.8853,
+        "velocity_pk_ips": 0.1586,
+        "displacement_pk_pk_in": 0.000262,
+        "residual_velocity_ips": 0,
+        "residual_disp_in": 0
+      },
+      "table": {
+        "engine": "wavsyn",
+        "rows": [
+          {
+            "freq_hz": 200,
+            "amplitude_g": 0.5429173961732014,
+            "half_cycles": 5,
+            "delay_s": 0.036068644704966304
+          },
+          {
+            "freq_hz": 251.98420997897463,
+            "amplitude_g": 0.4450214610106696,
+            "half_cycles": 5,
+            "delay_s": 0.02614738813016506
+          },
+          {
+            "freq_hz": 317.4802103936399,
+            "amplitude_g": 0.3367273518292083,
+            "half_cycles": 5,
+            "delay_s": 0.018272881568322102
+          },
+          {
+            "freq_hz": 400,
+            "amplitude_g": 0.7294145397581986,
+            "half_cycles": 5,
+            "delay_s": 0.012022881568322102
+          },
+          {
+            "freq_hz": 503.96841995794927,
+            "amplitude_g": 0.2817589192723746,
+            "half_cycles": 5,
+            "delay_s": 0.007062253280921479
+          },
+          {
+            "freq_hz": 634.9604207872798,
+            "amplitude_g": 0.7151499796147984,
+            "half_cycles": 5,
+            "delay_s": 0.003125
+          },
+          {
+            "freq_hz": 800,
+            "amplitude_g": 0.885307478807211,
+            "half_cycles": 5,
+            "delay_s": 0
+          }
+        ]
+      }
+    },
+    "ring_out_s": 0.02,
+    "pvss": true,
+    "schedule": {
+      "mode": "auto",
+      "levels_db": [
+        -6,
+        0
+      ],
+      "pulses": [
+        1,
+        1
+      ],
+      "start_db": -6,
+      "advance": "count",
+      "max_pulses_per_level": 5,
+      "max_pulses": 100
+    },
+    "spacing": {
+      "cooling_s": 0.05,
+      "settling_s": 0,
+      "compute_s": 0,
+      "spacing_s": 0.05
+    },
+    "identification": {
+      "excitation": "shaped",
+      "level_db": -20,
+      "max_vpk": null,
+      "vpk_cap": 0.5,
+      "nfft": 256,
+      "h_floor_frac": 0.05,
+      "min_mean_coherence": 0.8,
+      "review": false
+    },
+    "control": {
+      "law": {
+        "id": "srs_ratio",
+        "params": {}
+      },
+      "law_budget": 0.25,
+      "law_misses": 3,
+      "max_gain_rise_db": 6,
+      "controller": {
+        "drive_vpk_ceiling": 5.0,
+        "drive_vpk_abort": 8.0,
+        "sysid_max_vpk": null,
+        "min_mean_coherence": 0.8,
+        "rate_model": {
+          "cooling_floor_s": 0.05,
+          "settling_floor_s": 0.0,
+          "compute_floor_s": 0.0,
+          "device_recompute_floor_s": 20.0,
+          "read_cadence_ok": true
+        },
+        "guards": {
+          "budget_fraction": 0.25,
+          "max_misses": 3,
+          "max_pulses": 100
+        },
+        "max_gain_rise_db": 6.0
+      }
+    },
+    "limits": {
+      "drive_vpk_ceiling": 5,
+      "drive_vpk_abort": 8,
+      "peak_accel_g": null,
+      "abort_factor": 2,
+      "kinematic": {
+        "accel_g": null,
+        "velocity_ips": null,
+        "displacement_pk_pk_in": null
+      },
+      "monitors": [],
+      "headroom_db": 0,
+      "limit_channels": []
+    },
+    "acquisition": {
+      "requested_fs_hz": 2048,
+      "fs_hz": 2048,
+      "record_len": 182
+    },
+    "control_channel": 1,
+    "drive_channel": 3
+  },
+  "derived": {
+    "grid": {
+      "fs_hz": 2048,
+      "record_len": 182,
+      "actual": false
+    },
+    "bands_hz": [
+      200,
+      251.9842,
+      317.4802,
+      400,
+      503.9684,
+      634.9604,
+      800
+    ],
+    "target_g": [
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2
+    ],
+    "synthesis": {
+      "engine": "wavsyn",
+      "components": 7,
+      "iters": 4,
+      "converged": true,
+      "worst_err_db": 1.334,
+      "duration_s": 0.06885
+    },
+    "reference": {
+      "peak_g": 0.8853,
+      "velocity_pk_ips": 0.1586,
+      "displacement_pk_pk_in": 0.000262,
+      "residual_velocity_ips": 0,
+      "residual_disp_in": 0
+    },
+    "spacing_s": 0.05,
+    "call_budget_s": 0.0125,
+    "feasibility": {
+      "verdict": "not_evaluated",
+      "message": "No shaker was given, so the pulse was not checked against shaker ratings."
+    }
+  },
+  "feasibility": {
+    "inputs": null,
+    "verdict": "not_evaluated",
+    "message": "The shaker record lacks the ratings to check this pulse against."
+  }
+}
