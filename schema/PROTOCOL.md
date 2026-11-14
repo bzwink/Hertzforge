@@ -1076,7 +1076,7 @@ plain words: it never names a protocol method.
 | `mixed_timing_families` | `refused` | The selection spans devices that cannot share one sample clock | `families` |
 | `not_enough_channels` | `refused` | The selected devices have fewer channels than the table uses | `want_inputs`, `want_outputs`, `have_inputs`, `have_outputs` |
 | `hardware_busy` | `refused` | Another program holds the NI hardware | `holder` |
-| `record_unwritable` | `refused` | `random.arm`, `random.start`, `sine.arm`, `sine.start`, `shock.arm`, `shock.start`, `srs.arm`, `srs.start`, `twr.arm`, `twr.start` or `mimo_random.start`: the run's record (its folder, `run.json`, `table.json` or `setup.json`) cannot be written in the data folder; nothing is armed | `path`, `reason` |
+| `record_unwritable` | `refused` | `random.arm`, `random.start`, `sine.arm`, `sine.start`, `shock.arm`, `shock.start`, `srs.arm`, `srs.start`, `twr.arm`, `twr.start`, `mimo_random.start` or `explorer.start`: the run's record (its folder, `run.json`, `table.json` or `setup.json`) cannot be written in the data folder; nothing is armed | `path`, `reason` |
 | `stale_revision` | `refused` | `channels.set` quoted a revision that is no longer current | `current`, `provided` |
 | `table_invalid` | `bad_request` | The channel table has errors | `errors`, `warnings` |
 | `config_invalid` | `bad_request` | The Random, classical shock, SRS shock, Sine, Mixed Mode, TWR, Explorer or Recorder configuration has errors (for Explorer and the Recorder, also at `explorer.start` or `recorder.start` when the table no longer carries the run) | `errors`, `warnings` |
@@ -4843,6 +4843,9 @@ is refused `wrong_state`.
  "slew":{"freq_oct_per_s":1,"drive_db_per_s":6},
  "display":{"nfft":4096},
  "capture":{"run_name":"explorer"},
+ "operator":"A. Operator","article":"Bracket, SN 0042","notes":"",
+ "specification":{"document":"Test procedure","clause":"4.2"},
+ "record":{"streams":true},
  "metadata":[{"key":"run_number","label":"Run Number","value":"3"}]}
 ```
 
@@ -4858,6 +4861,9 @@ is refused `wrong_state`.
 | `display.nfft` | 4096 | The display spectra's FFT size, a power of two from 1024 to 16384. The rate over it is the spectra's line spacing, and half of that the survey's tolerance: a finer FFT gives a finer survey line |
 | `capture.run_name` | `explorer` | The run folder's name under the local data root (see "Explorer Records"), a plain name with no path in it |
 | `metadata` | the default fields | Random's: `{"key","label","value"}`, `label` the key when absent |
+| `operator`, `article`, `notes` | empty | Random's: who ran the run, on what, and notes, for the run's record |
+| `specification` | null | Random's: `{"document","clause"}`, the specification the run was made to |
+| `record.streams` | true | Whether the run's record keeps its time histories: every input as read and the drive as the device accepted it |
 
 The drive is the table's one enabled `drive` row; the acquired channels are every other enabled
 row, in table order; the **control row** (the one the survey line, the measured frequency and the
@@ -4922,9 +4928,11 @@ station at 12 800 Hz:
   run is live; it names that run, so a live Sine run refuses an Explorer start and a live Explorer
   run refuses a Sine arm, each naming the other), `table_invalid`, `config_invalid` (the table, as
   it is now, no longer carries the run: the same items as configure), then, once the station is
-  being opened, `devices_absent`, `hardware_busy` and `arm_refused` (the station or the arm gate
-  refused; the message is the controller's own). A refusal once the station is being opened ends
-  the run `arm_refused`, and `explorer.reset` comes before another start.
+  being opened, `devices_absent`, `hardware_busy`, `record_unwritable` (the run's record cannot
+  be written in the data folder, naming the path and the reason, before the station is opened;
+  see "Explorer Records") and `arm_refused` (the station or the arm gate refused; the message is
+  the controller's own). A refusal once the station is being opened ends the run `arm_refused`,
+  and `explorer.reset` comes before another start.
 - **`explorer.steer`** moves the tone. A frequency part is `hz` (absolute), `step_hz` (added to
   the target frequency) or `step_oct` (the target frequency times 2 to that power); a level part
   is `vpk` (absolute) or `step_db` (from the target level). A steer has one part or one of each,
@@ -4993,7 +5001,8 @@ service's clock.
  "health":{"engine_ticks":2069,"worst_tick_ms":0.41,"budget_ms":20,"health_faults":0,
            "ring_overruns":0,"blocks_dropped":0,"driver_warnings":2,
            "pass_ms":{"last":1.9,"worst":3.4},"batch_gap_ms":4.1},
- "stall":null,"stop":null,"end":null}
+ "stall":null,"stop":null,"end":null,
+ "record":{"folder":"/home/operator/Hertzforge_Data/explorer","streams":"on","problem":null}}
 ```
 
 | `state` | `phase` | Meaning |
@@ -5032,6 +5041,11 @@ service's clock.
   of its periods (and at least 3 s): the run may still be driving, and Abort stays open.
 - `stop` is null until a stop begins, then its cause: `operator`, `safe_stop` (nobody held
   control), `shutdown` or `limit` (the derived motion).
+- `record` is null until the run's record is open at start, then
+  `{"folder","streams","problem"}` as Random's: the run folder's absolute path, `on` or `off`
+  (the streams are switched off in the setup, or the disk was under the free-space floor at
+  start), and the latest problem writing the record in words, or null. A problem does not end
+  the run.
 - `end` is null until the run finishes, then
   `{"outcome","message","at_s","at_hz","vpk","ramp_s","trip"}`: `at_s` the station time at which
   the run finished, `at_hz` and `vpk` the tone when the end began, `ramp_s` the controlled stop's
@@ -5082,15 +5096,27 @@ measured again from the next pass. Refused `wrong_state` outside `running` and `
 
 ### Explorer Records
 
-Each run writes its folder `capture.run_name` under the local data root (`HERTZFORGE_DATA_ROOT`,
-else `Hertzforge_Data` in the home folder; the log names the folder at start, "records in
-<path>"); a name already taken gets the first free `<name>-<n>`, so no run writes over another:
-`explorer.json` (the
-configuration, the station, the requested and adopted rates and the derived numbers),
-`intents.jsonl` (a line for every steering verb the run took: its station time, the frame it took
-effect at, what was asked, what was adopted and whether it was clamped), `survey.json` (the
-survey's points and peak at the end) and `end.json` (the end). No samples are recorded. The files
-are written by the service's own thread, never by the thread that reads the station.
+Every Explorer run that starts leaves a run folder in the service's data folder, laid out in
+`docs/run-folder.md` ("What an Explorer Run Saves") and written by the shared run record, which
+the analysis side converts into a project file (`hertzforge.io.run_convert`). The folder is
+`capture.run_name` under the local data root (`HERTZFORGE_DATA_ROOT`, else `Hertzforge_Data` in
+the home folder); a name already taken gets the first free `<name>-<n>`, so no run writes over
+another. `run.json`, `table.json` and `setup.json` are written at start, before the station is
+opened, or the start is refused `record_unwritable` and nothing is driven. `run.json`'s `grid`
+is the rate asked until the station has programmed its own, then the station's (`actual`), and
+the streams' `fs_hz` with it. While the run goes, every log entry is appended to `log.jsonl` as
+it is made, with the station frame and structured `data`: each steering verb the run took is an
+`intent` entry whose `data` is its station time, the generated frame it took effect at, the
+input frame it was taken at, what was asked, what was adopted and whether it was clamped. Every
+enabled input as read and the drive as the device accepted it are recorded as streams unless
+`record.streams` is false. At the end, any way the run ends, the survey line and each acquired
+channel's last display spectrum are written as results, and `end.json` holds `end` as
+`explorer.state` reports it, the run's state and what it measured; `run.json` then says
+`complete`. A service stopped mid-run leaves the folder with `complete` false. The files are
+written by the record's own thread: the run's thread hands it entries with sends that never
+wait, the streams are taken where the station's blocks pass into buffers made before the run,
+and nothing touches a file on the thread that reads the station and plays the output. A write
+that fails is a `record` entry in the log and the state's `record.problem`, and the run goes on.
 
 ### Explorer Display
 
@@ -5098,10 +5124,12 @@ Event topics:
 
 - `explorer.state` (text): the state object on every change of `state`, `phase`, `sweep`,
   `stop`, `stall` or `end`.
-- `explorer.log` (text): new log entries, as Random's: "the station programmed <fs> Hz (asked
-  <fs> Hz); the band is <lo> to <hi> Hz" and "records in <path>" at start, every driver warning
-  (`note`, "driver: " and the driver's own text), "stop began: <cause>" and "ended <outcome>:
-  <message>".
+- `explorer.log` (text): new log entries, as Random's: "records in <path>" and "the station
+  programmed <fs> Hz (asked <fs> Hz); the band is <lo> to <hi> Hz" at start, every steering verb
+  the run took (`intent`: "steer: <hz> Hz, <vpk> V pk", "sweep <direction> at <rate> oct/min",
+  "hold at <hz> Hz" or "stop: <cause>", each part followed by "(asked <value>, clamped)" where it
+  was clamped), every driver warning (`note`, "driver: " and the driver's own text), every
+  problem writing the record (`record`), "stop began: <cause>" and "ended <outcome>: <message>".
 - `explorer.live` (binary, to every connection without an Explorer subscription of its own, 10
   times a second from start until the run has finished, then once more).
 - `explorer.data` (binary, to one subscribed connection, in place of `explorer.live`):

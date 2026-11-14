@@ -13,6 +13,7 @@ import type {
 	ReadingView,
 	RefusalReason,
 	ReportItem,
+	RunRecordRef,
 	SpectrumView,
 	StationClass,
 	StationRef,
@@ -69,6 +70,14 @@ export interface ExplorerConfig {
 	capture?: ExplorerCapture;
 	/** Random's fields; `label` is the key when absent. */
 	metadata?: { key: string; label?: string; value: string }[];
+	/** Random's words for the run's record: who ran it, on what, and notes. */
+	operator?: string;
+	article?: string;
+	notes?: string;
+	/** The specification the run was made to. */
+	specification?: { document: string; clause: string } | null;
+	/** Whether the run's record keeps its time histories; default true. */
+	record?: { streams?: boolean } | null;
 }
 
 export interface ExplorerConfigureParams {
@@ -307,6 +316,8 @@ export interface ExplorerState {
 	stall: ExplorerStall | null;
 	stop: ExplorerStopCause | null;
 	end: ExplorerEnd | null;
+	/** The run's folder from start on, whether it keeps the streams, and the latest problem writing it. */
+	record?: RunRecordRef | null;
 }
 
 export interface ExplorerLogResult {

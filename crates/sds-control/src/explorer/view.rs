@@ -10,6 +10,7 @@ use crate::views::{self, Axis, Role, Row, Scale, Series, Status};
 use hertzforge_channel_table::{ChannelRole, ChannelTable};
 use serde_json::{json, Map, Value};
 
+pub use crate::random::view::RecordRef;
 pub use crate::sine::view::StationRef;
 
 /// Points the live frame's survey line is drawn on across the band.
@@ -216,6 +217,9 @@ pub struct ExplorerView {
     pub peak: Option<(f64, f64)>,
     /// The control row's unit.
     pub control_unit: String,
+    /// The run's folder from start on, whether it keeps the streams, and the latest
+    /// problem writing it.
+    pub record: Option<RecordRef>,
 }
 
 fn role_name(r: ChannelRole) -> &'static str {
@@ -289,6 +293,7 @@ pub fn configured_view(
         }),
         peak: None,
         control_unit: control.map_or_else(|| "g".into(), |c| unit_name(&c.units)),
+        record: None,
     }
 }
 
@@ -312,6 +317,7 @@ pub fn state_json(v: Option<&ExplorerView>) -> Value {
             "max_drive_vpk": null, "slew": null, "pipeline_frames": null, "t_s": null,
             "frequency_hz": null, "target_hz": null, "drive_vpk": null, "target_vpk": null,
             "sweep": null, "health": null, "stall": null, "stop": null, "end": null,
+            "record": null,
         });
     };
     let health = v.health.as_ref().map_or(Value::Null, |h| {
@@ -360,23 +366,25 @@ pub fn state_json(v: Option<&ExplorerView>) -> Value {
         "stall": stall,
         "stop": v.stop,
         "end": v.end.as_ref().map_or(Value::Null, End::to_json),
+        "record": v.record.as_ref().map_or(Value::Null, RecordRef::to_json),
     })
 }
 
 /// What an `explorer.state` event is sent on a change of: state, phase, sweep, stop,
-/// stall and end.
+/// stall, end and record.
 pub fn state_key(v: Option<&ExplorerView>) -> String {
     match v {
         None => "unconfigured".into(),
         Some(v) => format!(
-            "{}|{}|{}|{}|{}|{}|{}",
+            "{}|{}|{}|{}|{}|{}|{}|{}",
             v.run_id,
             v.state.name(),
             v.phase,
             sweep_json(&v.sweep),
             v.stop.unwrap_or(""),
             v.stall.is_some(),
-            v.end.as_ref().map_or(Value::Null, End::to_json)
+            v.end.as_ref().map_or(Value::Null, End::to_json),
+            v.record.as_ref().map_or(Value::Null, RecordRef::to_json)
         ),
     }
 }

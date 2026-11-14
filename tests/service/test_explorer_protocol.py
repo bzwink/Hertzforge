@@ -105,8 +105,14 @@ def test_explorer_binary_golden_validates_and_decodes_to_its_expected_json(name,
 def test_a_configuration_needs_only_the_ceiling_and_takes_no_other_key(validate):
     config = _text('request_explorer_configure')['params']['config']
     assert set(config) == {'title', 'acquisition', 'band_hz', 'start_hz', 'max_drive_vpk',
-                           'slew', 'display', 'capture', 'metadata'}
+                           'slew', 'display', 'capture', 'metadata', 'operator', 'article',
+                           'notes', 'specification', 'record'}
     validate({'max_drive_vpk': 0.5}, 'explorerConfig')
+    # the run's record: the operator's words, and whether it keeps its time histories
+    validate({'max_drive_vpk': 0.5, 'record': {'streams': False}, 'specification': None},
+             'explorerConfig')
+    _refused(validate, {'max_drive_vpk': 0.5, 'record': {'streams': 'yes'}}, 'explorerConfig')
+    _refused(validate, {'max_drive_vpk': 0.5, 'record': {'samples': True}}, 'explorerConfig')
     bad = copy.deepcopy(config)
     del bad['max_drive_vpk']
     _refused(validate, bad, 'explorerConfig')
@@ -191,6 +197,12 @@ def test_the_state_ends_exactly_when_finished_and_a_trip_names_its_facts(validat
                  'explorerState')
     _refused(validate, {**state, 'stop': 'timeout'}, 'explorerState')
     _refused(validate, {**state, 'state': 'armed'}, 'explorerState')
+    # the run's record: named from start, with the latest problem writing it
+    assert started['record'] == state['record'] and state['record']['streams'] == 'on'
+    assert _text('response_explorer_configure')['result']['state']['record'] is None
+    validate({**state, 'record': {**state['record'], 'problem': 'a write failed'}},
+             'explorerState')
+    _refused(validate, {**state, 'record': {'folder': 'x', 'streams': 'on'}}, 'explorerState')
     stalled = {**state, 'stall': {'stale_s': 3.2, 'period_s': 0.04,
                                   'message': 'The service loop has missed its periods.'}}
     validate(stalled, 'explorerState')

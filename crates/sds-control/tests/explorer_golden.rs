@@ -12,7 +12,7 @@ use sds_control::codec::{self, Arrays, Frame};
 use sds_control::explorer::config::{self, CheckContext, StationFigures};
 use sds_control::explorer::subscribe::{self, DataContext};
 use sds_control::explorer::view::{
-    self, ControlMotion, ExplorerView, Grid, Health, LiveChannel, State, StationRef,
+    self, ControlMotion, ExplorerView, Grid, Health, LiveChannel, RecordRef, State, StationRef,
 };
 use sds_control::{protocol, table};
 use serde_json::{json, Value};
@@ -263,6 +263,11 @@ fn armed(mut v: ExplorerView) -> ExplorerView {
         ..v.grid
     };
     v.clock = Some("shared");
+    v.record = Some(RecordRef {
+        folder: "/home/operator/Hertzforge_Data/explorer".into(),
+        streams: true,
+        problem: None,
+    });
     v
 }
 

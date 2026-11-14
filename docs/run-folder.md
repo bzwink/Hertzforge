@@ -6,8 +6,8 @@ service to be read. The analysis side converts it into an ordinary project file
 (`hertzforge convert-run FOLDER`, or open the folder or its `run.json`), so a
 finished run reaches every analysis tool with its channel table, its setup, its
 log and its measurements. Today the Random, MIMO Random, Sine, Classical Shock,
-SRS shock and TWR modules and the Recorder write one for every run; the other
-control modules do not yet.
+SRS shock and TWR modules, Explorer and the Recorder write one for every run; the
+other control modules do not yet.
 
 The exact form is the reader's, `hertzforge.io.run_folder`; the conversion is
 `hertzforge.io.run_convert`, described in `docs/hforge-format.md` ("Run Folders
@@ -24,9 +24,10 @@ Under the service's data folder: the folder `HERTZFORGE_DATA_ROOT` names, or
 `<YYYYMMDD-HHMMSS>_classical_shock_<run id>`, an SRS shock run's
 `<YYYYMMDD-HHMMSS>_srs_<run id>` and a TWR run's
 `<YYYYMMDD-HHMMSS>_twr_<run id>`, the time it armed in UTC. A Recorder run's
-folder is the plain name its setup gives (`capture.run_name`). The run's state
-names the folder from arm on (`random.state`, `mimo_random.status`, `sine.state`,
-`shock.state`, `srs.state`, `twr.state` and `recorder.state`, `record.folder`).
+folder, and an Explorer run's, is the plain name its setup gives
+(`capture.run_name`). The run's state names the folder from arm on
+(`random.state`, `mimo_random.status`, `sine.state`, `shock.state`, `srs.state`,
+`twr.state`, `explorer.state` and `recorder.state`, `record.folder`).
 
 ## Layout
 
@@ -535,3 +536,53 @@ acquired, the rows' statistics) normalized; `scripts/make_golden_runs.sh`
 rewrites it. It holds no gap: a gap needs a disk that falls behind, which a test
 cannot make the same every time, so gaps are tested on the Recorder's writer and
 on the reader.
+
+## What an Explorer Run Saves
+
+From start, before the station is opened: `run.json` (with the run's
+`metadata`; its `grid` is the rate asked, the block, the output lookahead, the
+pipeline and the band until the station has programmed its rate, then the
+station's own, `actual` true, and the streams' `fs_hz` with it), `table.json`,
+`setup.json` (`config` as accepted; `resolved`, the acquisition, the band and
+the start frequency, the drive row with its ceiling and the 0 V start, the
+slews, the ramp's span, the display's FFT, the survey's channel, unit, window and
+peak level, the acquired inputs, every abort in force and the folder's name;
+and `derived` as configured) and `log.jsonl`, and these, each checked against
+the golden run folder (`schema/golden/runs/explorer/`) by
+`tests/test_run_folder_golden_explorer.py`:
+
+| File | What |
+|---|---|
+| `streams/inputs` | Every enabled input as read from the station, in table order (`kind` `inputs`) |
+| `streams/drives` | The drive as the device accepted it, in volts (`kind` `drives`) |
+| `results/survey` | The survey line at the end: the control row's amplitude at the tone, peak, at each frequency the tone visited, ascending, with its highest point (`kind` `survey`) |
+| `results/spectra` | Each acquired channel's last display window at the end: its amplitude spectrum, peak, from one Hann window corrected so a tone reads its amplitude, magnitude only (`kind` `amplitude_spectrum`) |
+| `end.json` | The end, as the run's state reports it, the state itself, and what the run measured: each acquired channel's rms, the measured frequency, the control row's derived motion and the survey's peak |
+
+Every steering verb the run took is a log entry of kind `intent`, its `data`
+the verb's facts: `t_s`, the generated `frame` it took effect at, the
+`input_frame` it was taken at, and what was asked, adopted and clamped. With
+`record.streams` false there is no `streams/` folder. A survey with no point
+has no `results/survey`, and a run that ended before its first display window
+no `results/spectra`. Explorer has no law.
+
+Before Explorer wrote this folder it kept one of its own, with the same name:
+`explorer.json` (the configuration, the station, the rates and the derived
+values) is now `run.json` and `setup.json`; `intents.jsonl` is the log's
+`intent` entries; `survey.json` is `results/survey`; and `end.json` is
+`end.json`, which still holds the state.
+
+On the analysis side the streams become time histories. The survey and the
+spectra are magnitudes with no phase, which no analysis class holds, so they
+stay in the run record as named arrays.
+
+The golden folder is written by `cargo test -p sds-control --test
+explorer_golden_run` from a short run on the simulator: the tone at 200 Hz
+raised to 0.1 V pk once the first frames have passed, held until the survey has
+its point, and stopped. Explorer is steered by hand, so what follows the wall
+clock is normalized: the wall times, the build fields, the folder's path, the
+station frames (of the log, of the intents, of the end), the run's health, what
+it measured, and the values of the survey's levels and of the spectra (their
+shapes, channels and units are kept). Its streams are cut to their first 256
+frames, before the first steer (`cut_from_frames`);
+`scripts/make_golden_runs.sh` rewrites it.

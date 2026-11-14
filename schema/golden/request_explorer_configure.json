@@ -45,7 +45,17 @@
      "label": "Operator",
      "value": ""
     }
-   ]
+   ],
+   "operator": "A. Operator",
+   "article": "Bracket, SN 0042",
+   "notes": "",
+   "specification": {
+    "document": "Test procedure",
+    "clause": "4.2"
+   },
+   "record": {
+    "streams": true
+   }
   }
  }
 }

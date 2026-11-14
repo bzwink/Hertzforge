@@ -2035,6 +2035,8 @@ export class AppState {
 	readonly srsRunOpen: RunOpen;
 	/** A finished Sine run's way to its data on the analysis side. */
 	readonly sineRunOpen: RunOpen;
+	/** A finished Explorer run's way to its data: its time histories, in the Signals workspace. */
+	readonly explorerRunOpen: RunOpen;
 	/** A finished MIMO Random run's way to its data: the Random workspace. */
 	readonly mimoRunOpen: RunOpen;
 	/** A finished TWR run's way to its data: the Transient Analysis workspace. */
@@ -2109,6 +2111,7 @@ export class AppState {
 		this.shockRunOpen = new RunOpen(runHost, 'classical_shock');
 		this.srsRunOpen = new RunOpen(runHost, 'srs');
 		this.sineRunOpen = new RunOpen(runHost, 'sine');
+		this.explorerRunOpen = new RunOpen(runHost, 'explorer');
 		this.mimoRunOpen = new RunOpen(runHost, 'mimo_random');
 		this.twrRunOpen = new RunOpen(runHost, 'twr');
 		this.mimo = new MimoState(this.acquire, config.popout ? { local: null, drafts: false } : {});

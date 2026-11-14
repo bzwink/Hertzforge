@@ -71,7 +71,7 @@
 {#snippet station()}<StationPanel acq={explorer.acq} />{/snippet}
 
 {#snippet run()}
-	<ExplorerRunView {explorer} {views} {station} {abortKeys} onpopout={(id) => app.openDisplayWindow(id, 'explorer')} />
+	<ExplorerRunView {explorer} {views} {station} {abortKeys} onpopout={(id) => app.openDisplayWindow(id, 'explorer')} opener={app.explorerRunOpen} />
 {/snippet}
 
 <PulseScreen

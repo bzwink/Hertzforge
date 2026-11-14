@@ -1,0 +1,7 @@
+{"seq":0,"at_unix":1794240000.25,"frame":null,"kind":"state","text":"configured \"Golden Explorer\" on sim"}
+{"seq":1,"at_unix":1794240001.25,"frame":null,"kind":"note","text":"records in golden_explorer"}
+{"seq":2,"at_unix":1794240002.25,"frame":8192,"kind":"station","text":"the station programmed 2048 Hz (asked 2048 Hz); the band is 20 to 800 Hz"}
+{"seq":3,"at_unix":1794240003.25,"frame":8192,"kind":"intent","text":"steer: 0.1 V pk","data":{"seq":0,"t_s":4.0,"frame":8192,"input_frame":8192,"verb":"steer","hz":null,"vpk":{"asked":0.1,"adopted":0.1,"clamped":false}}}
+{"seq":4,"at_unix":1794240004.25,"frame":8192,"kind":"intent","text":"stop: operator","data":{"seq":1,"t_s":4.0,"frame":8192,"input_frame":8192,"verb":"stop","cause":"operator"}}
+{"seq":5,"at_unix":1794240005.25,"frame":8192,"kind":"state","text":"stop began: operator"}
+{"seq":6,"at_unix":1794240006.25,"frame":8192,"kind":"state","text":"ended operator_stop: Stopped by Shell (controller): the controlled stop ramped the drive to 0 V."}
