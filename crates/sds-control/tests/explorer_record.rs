@@ -395,7 +395,22 @@ async fn explorer_a_failed_write_is_a_problem_and_the_run_goes_on() {
     c.ok("explorer.stop", json!({})).await;
     let end = state_until(&mut c, "the end", |s| s["state"] == "finished").await;
     assert_eq!(end["end"]["outcome"], "operator_stop", "{end}");
-    assert_eq!(end["record"]["problem"], problem.as_str());
+    // The state names the latest problem: the other stream's may land after the
+    // first was read, and each is in the log as written.
+    let last = end["record"]["problem"]
+        .as_str()
+        .expect("the problem stays in the state")
+        .to_owned();
+    assert!(last.contains("free space"), "{last}");
+    let log = c.ok("explorer.log", json!({})).await;
+    assert!(
+        log["entries"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|e| e["kind"] == "record" && e["text"] == last.as_str()),
+        "{log}"
+    );
 }
 
 /// A writer that stalls two seconds on every write leaves the output as it was: the
