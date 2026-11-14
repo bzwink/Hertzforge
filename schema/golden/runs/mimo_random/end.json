@@ -1,0 +1,81 @@
+{
+  "run_uid": "golden-mimo-random",
+  "end": {
+    "outcome": "completed",
+    "message": "The run completed its time at full level and stopped.",
+    "at_s": 30.0,
+    "level_db": null,
+    "trip": null
+  },
+  "at_unix": 1794240060.25,
+  "summary": {
+    "loops": 3,
+    "law_calls": 3,
+    "snapshots": [
+      2,
+      3
+    ],
+    "identification": true
+  },
+  "report": {
+    "loops": 4,
+    "control_rms": [
+      2.736303692471128,
+      2.613707749103836,
+      1.8050252618218643,
+      0.6002262405061637
+    ],
+    "reference_rms": [
+      2.401425565177531,
+      2.407608926288362,
+      1.6719004283306105,
+      0.6013210164422376
+    ],
+    "control_error_db": [
+      1.333075873928958,
+      1.0918560629845393,
+      1.1528569507451651,
+      0.2975214944744488
+    ],
+    "drive_rms_v": [
+      0.50494452722723,
+      0.46582488563170527,
+      0.43554707490188355,
+      0.3815870366396884
+    ],
+    "min_cap": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "gates": {
+      "coherence_min": 0.9815305817516282,
+      "coherence_floor": 0.5,
+      "condition_max": 6.925520458882006,
+      "condition_limit": 1000.0,
+      "passed": true,
+      "coherence": [
+        0.9820324748483318,
+        0.9815305817516282,
+        0.9815577156302336,
+        0.9896117038366168
+      ]
+    },
+    "overrides": []
+  },
+  "streams": {
+    "inputs": {
+      "frames": 128,
+      "drops": 0,
+      "gaps": 0,
+      "fault": null
+    },
+    "drives": {
+      "frames": 128,
+      "drops": 0,
+      "gaps": 0,
+      "fault": null
+    }
+  }
+}

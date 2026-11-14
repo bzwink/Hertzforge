@@ -1,0 +1,33 @@
+{
+  "kind": "inputs",
+  "fs_hz": 4096,
+  "channels": [
+    {
+      "index": 1,
+      "unit": "g",
+      "description": "Control 1"
+    },
+    {
+      "index": 2,
+      "unit": "g",
+      "description": "Control 2"
+    },
+    {
+      "index": 3,
+      "unit": "g",
+      "description": "Control 3"
+    },
+    {
+      "index": 4,
+      "unit": "g",
+      "description": "Control 4"
+    }
+  ],
+  "first_station_frame": 0,
+  "name": "inputs",
+  "frames": 128,
+  "gaps": [],
+  "complete": true,
+  "fault": null,
+  "cut_from_frames": 159744
+}
