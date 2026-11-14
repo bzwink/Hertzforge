@@ -54,6 +54,8 @@ import { explorerBarActions, explorerIsLive, explorerPrimary, explorerSteerVerbs
 import { answerWords, EXPLORER_OUTCOME_WORDS, EXPLORER_PHASE_WORDS, EXPLORER_STATE_WORDS, explorerStateFact } from './explorerWords';
 
 const SETUP_KEY = 'hertzforge.acquire.explorer.setup.v1';
+/** The rate the service asks for when the setup gives none (PROTOCOL.md, "Explorer Configuration"). */
+const EXPLORER_DEFAULT_FS_HZ = 8192;
 /** The setup this screen applied, by run: `{runId, key}`. */
 const HELD_KEY = 'hertzforge.acquire.explorer.held.v1';
 /** Most log entries kept on screen; the service keeps the full log with the run. */
@@ -346,8 +348,19 @@ export class ExplorerStore {
 			level_db: null,
 			at_level_s: null,
 			remaining_at_level_s: null,
-			end: s.end as unknown as RunHead['end']
+			end: s.end as unknown as RunHead['end'],
+			record: s.record ?? null
 		};
+	}
+
+	/** The channels a run's streams would hold: every enabled input and the drive of the table being edited. */
+	get recordChannels(): number {
+		return this.rows.filter((r) => r.enabled).length;
+	}
+
+	/** The rate the run asks for (the usual one when none is given), for the size its streams take. */
+	get recordRateHz(): number {
+		return this.setup.acquisition.fs_hz ?? EXPLORER_DEFAULT_FS_HZ;
 	}
 
 	/** No level in dB: the bar's level readout is not shown, and the frequency and drive take its place. */

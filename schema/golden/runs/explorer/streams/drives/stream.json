@@ -1,0 +1,22 @@
+{
+  "kind": "drives",
+  "fs_hz": 2048,
+  "channels": [
+    {
+      "index": 2,
+      "unit": "V",
+      "description": "Drive"
+    }
+  ],
+  "first_station_frame": 0,
+  "output_latency_frames": {
+    "frames": 4,
+    "how": "declared"
+  },
+  "name": "drives",
+  "frames": 256,
+  "gaps": [],
+  "complete": true,
+  "fault": null,
+  "cut_from_frames": 8192
+}

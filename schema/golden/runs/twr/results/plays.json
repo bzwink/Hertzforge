@@ -1,0 +1,187 @@
+{
+  "name": "plays",
+  "kind": "play_results",
+  "abscissa": {
+    "kind": "none"
+  },
+  "channels": {
+    "responses": [
+      1
+    ]
+  },
+  "description": "each play as judged: its level, error measures, gate (1 met, 0 not, NaN not judged), drive and response peaks, lag, and how it ended (tripped and cancelled 1 or 0)",
+  "records": {
+    "index": "the play, from 0",
+    "kind": "iteration or playback",
+    "level_db": "the level played",
+    "iteration": "from 1 at its level",
+    "outcome": "judged, tripped or cancelled",
+    "trip": "what ended the run on it",
+    "shot": "its shot in the streams",
+    "frame": "the station frame when it was kept"
+  },
+  "arrays": [
+    {
+      "name": "level_db",
+      "dtype": "f8",
+      "shape": [
+        1
+      ],
+      "unit": "dB",
+      "offset": 0
+    },
+    {
+      "name": "playback",
+      "dtype": "f8",
+      "shape": [
+        1
+      ],
+      "unit": "",
+      "offset": 8
+    },
+    {
+      "name": "iteration",
+      "dtype": "f8",
+      "shape": [
+        1
+      ],
+      "unit": "",
+      "offset": 16
+    },
+    {
+      "name": "rms_error",
+      "dtype": "f8",
+      "shape": [
+        1
+      ],
+      "unit": "%",
+      "offset": 24
+    },
+    {
+      "name": "peak_error",
+      "dtype": "f8",
+      "shape": [
+        1
+      ],
+      "unit": "%",
+      "offset": 32
+    },
+    {
+      "name": "spectral_error",
+      "dtype": "f8",
+      "shape": [
+        1
+      ],
+      "unit": "dB",
+      "offset": 40
+    },
+    {
+      "name": "gated",
+      "dtype": "f8",
+      "shape": [
+        1
+      ],
+      "unit": "",
+      "offset": 48
+    },
+    {
+      "name": "clipped_samples",
+      "dtype": "f8",
+      "shape": [
+        1
+      ],
+      "unit": "",
+      "offset": 56
+    },
+    {
+      "name": "clamped_bins",
+      "dtype": "f8",
+      "shape": [
+        1
+      ],
+      "unit": "",
+      "offset": 64
+    },
+    {
+      "name": "drive_peak",
+      "dtype": "f8",
+      "shape": [
+        1
+      ],
+      "unit": "V",
+      "offset": 72
+    },
+    {
+      "name": "response_peak",
+      "dtype": "f8",
+      "shape": [
+        1
+      ],
+      "unit": "g",
+      "offset": 80
+    },
+    {
+      "name": "lag",
+      "dtype": "f8",
+      "shape": [
+        1
+      ],
+      "unit": "frames",
+      "offset": 88
+    },
+    {
+      "name": "drift",
+      "dtype": "f8",
+      "shape": [
+        1
+      ],
+      "unit": "frames",
+      "offset": 96
+    },
+    {
+      "name": "start_frame",
+      "dtype": "f8",
+      "shape": [
+        1
+      ],
+      "unit": "frames",
+      "offset": 104
+    },
+    {
+      "name": "frames",
+      "dtype": "f8",
+      "shape": [
+        1
+      ],
+      "unit": "frames",
+      "offset": 112
+    },
+    {
+      "name": "at_s",
+      "dtype": "f8",
+      "shape": [
+        1
+      ],
+      "unit": "s",
+      "offset": 120
+    },
+    {
+      "name": "tripped",
+      "dtype": "f8",
+      "shape": [
+        1
+      ],
+      "unit": "",
+      "offset": 128
+    },
+    {
+      "name": "cancelled",
+      "dtype": "f8",
+      "shape": [
+        1
+      ],
+      "unit": "",
+      "offset": 136
+    }
+  ]
+}

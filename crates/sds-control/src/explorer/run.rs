@@ -2,18 +2,25 @@
 //! the run arms on; a sink that keeps what the pump hands on (each block's control
 //! samples with their input frame, each display window, the survey line, the intents,
 //! the pump's notes); and the run's own thread, which composes the view from the host's
-//! snapshot ten times a second, publishes it, logs, and writes the records. Nothing
-//! here writes a file on the pump: the pump is the station's reading thread.
+//! snapshot ten times a second, publishes it and logs. The run's record
+//! ([`crate::record`]) is written on its own writer thread: the run's thread hands it
+//! entries and results with sends that never wait, and the streams are taken where the
+//! station's blocks pass ([`crate::record::tap`]), into buffers made before the run.
+//! Nothing here writes a file on the pump: the pump is the station's reading thread
+//! and plays the output.
 //!
 //! The verbs reach the host directly. Each takes the service lock, which the pump holds
 //! for one batch and one analysis pass, so the server runs them on the blocking pool
 //! with a bounded wait.
 
 use super::config::{round, Derived, WireExplorer};
-use super::records::Records;
-use super::view::{ControlMotion, End, ExplorerView, Health, Stall, State, Sweep, Trip};
+use super::records::{self, StartFacts};
+use super::view::{ControlMotion, End, ExplorerView, Health, RecordRef, Stall, State, Sweep, Trip};
 use crate::protocol::{ErrorCode, MethodError};
-use crate::pulse::rails::Shared;
+use crate::pulse::rails::{now_unix, Shared};
+use crate::random::record as rrec;
+use crate::record::tap::{self, Recording};
+use crate::record::{ProblemFn, RecordOptions, RecordStatus, RunRecord};
 use crate::sine::profile::sig;
 use crate::station::{self, NiScanner, StationPlan};
 use hertzforge_channel_table::{ChannelRole, ChannelTable};
@@ -23,7 +30,7 @@ use hertzforge_explorer_host::{
     ExplorerHostService, ExplorerStatus, IntentKind, IntentRecord, RunState, StopCause,
     SweepDirection,
 };
-use serde_json::json;
+use serde_json::{json, Map, Value};
 use std::collections::VecDeque;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -226,6 +233,12 @@ pub struct StartContext {
     /// Where the run's folder is made.
     pub records_root: PathBuf,
     pub bind: String,
+    /// The table's revision, for the run's record.
+    pub revision: u64,
+    /// The devices of the last scan, for the record's models and serial numbers.
+    pub devices: Vec<hertzforge_hal::DiscoveredDevice>,
+    /// How the run's record is written.
+    pub record: RecordOptions,
 }
 
 /// The service's handle on one configured run.
@@ -331,13 +344,49 @@ impl ExplorerRun {
             };
             let cfg = self.wire.build();
             let fs = cfg.fs_hz;
-            let svc =
-                ExplorerHostService::new(cfg, ctx.table.clone(), station.backend, station.station)
-                    .map_err(|e| refuse("arm_refused", format!("The station refused to arm: {e}")))?
-                    .with_block_frames(hertzforge_hal::default_block_frames(fs));
-            Ok::<_, MethodError>((svc, guard, lookahead, clock, hardware))
+            // The streams are taken where the station's blocks pass: the inputs as read
+            // and the drive as the device accepted it. Their buffers are made here,
+            // before anything runs, and the taps never wait.
+            let streams_off = self.streams_off(&ctx);
+            let buffers = if streams_off.is_none() {
+                rrec::tap_buffers(fs, ctx.record.stream_buffer_s)
+            } else {
+                1
+            };
+            let (inputs_tap, inputs_link) = tap::pair(
+                rrec::input_rows(&ctx.table).len(),
+                rrec::TAP_BLOCK_FRAMES,
+                buffers,
+            );
+            let (drives_tap, drives_link) = tap::pair(
+                rrec::drive_rows(&ctx.table).len(),
+                rrec::TAP_BLOCK_FRAMES,
+                buffers,
+            );
+            let class = station.station;
+            let provenance = station.provenance.clone();
+            let backend = Recording::wrap(
+                station.backend,
+                inputs_tap,
+                drives_tap,
+                self.shared.station_frame.clone(),
+            );
+            let svc = ExplorerHostService::new(cfg, ctx.table.clone(), backend, class)
+                .map_err(|e| refuse("arm_refused", format!("The station refused to arm: {e}")))?
+                .with_block_frames(hertzforge_hal::default_block_frames(fs));
+            // The run's record, before the station is opened: refused here, the start
+            // is refused and nothing has been driven.
+            let kept = self.open_record(
+                &ctx,
+                class,
+                &provenance,
+                &caps,
+                streams_off,
+                (inputs_link, drives_link),
+            )?;
+            Ok::<_, MethodError>((svc, guard, lookahead, clock, hardware, kept))
         })();
-        let (svc, guard, lookahead, clock, hardware) = match built {
+        let (svc, guard, lookahead, clock, hardware, kept) = match built {
             Ok(b) => b,
             Err(e) => {
                 self.end_before_start(&e);
@@ -364,14 +413,20 @@ impl ExplorerRun {
         if let Err(e) = self.host.start(sink) {
             let e = refuse("arm_refused", format!("The run could not start: {e:?}"));
             self.end_before_start(&e);
+            self.shared.detach_record();
+            let at = now_unix();
+            kept.record
+                .finish(records::end_map(&kept.run_uid, &self.view(), at, None));
             return Err(e);
         }
-        let records = Records::open(&ctx.records_root, &self.wire.run_name);
         let run = self.clone();
         let facts = Facts {
             lookahead,
             clock,
-            records,
+            status: kept.record.status(),
+            record: Some(kept.record),
+            run_uid: kept.run_uid,
+            table: ctx.table.clone(),
             _guard: guard,
         };
         std::thread::Builder::new()
@@ -403,6 +458,94 @@ impl ExplorerRun {
         }
     }
 
+    /// Why the run's streams are not recorded, or `None` when they are: switched off in
+    /// the setup, or the disk under the free-space floor at start (the run goes on
+    /// without them, as a control run does).
+    fn streams_off(&self, ctx: &StartContext) -> Option<String> {
+        if !self.wire.record_streams {
+            return Some("switched off in the setup".to_owned());
+        }
+        match hertzforge_capture::free_space_bytes_for(&ctx.records_root) {
+            Ok(free) if free < ctx.record.free_space_floor_bytes => Some(format!(
+                "the disk had {} MB free, under the {} MB kept free",
+                free / 1_000_000,
+                ctx.record.free_space_floor_bytes / 1_000_000
+            )),
+            _ => None,
+        }
+    }
+
+    /// Open the run's record: `run.json`, `table.json`, `setup.json` and the log so
+    /// far, on the record's own thread, waiting for them. `record_unwritable` when they
+    /// cannot be written. From here on every log entry is appended to it as it is made,
+    /// and the state names its folder.
+    fn open_record(
+        &self,
+        ctx: &StartContext,
+        class: hertzforge_module_abi::StationClass,
+        provenance: &hertzforge_station::ProvenanceBasis,
+        caps: &hertzforge_hal::Caps,
+        streams_off: Option<String>,
+        links: (tap::TapLink, tap::TapLink),
+    ) -> Result<Kept, MethodError> {
+        let started_unix = now_unix();
+        let run_uid = rrec::run_uid(started_unix, &self.id);
+        let facts = StartFacts {
+            run_id: &self.id,
+            run_uid: &run_uid,
+            wire: &self.wire,
+            table: &ctx.table,
+            revision: ctx.revision,
+            plan: &ctx.station,
+            class,
+            provenance,
+            devices: &ctx.devices,
+            caps,
+            derived: &self.derived_figures,
+            started_unix,
+            utc_offset_s: rrec::utc_offset_s(),
+            streams_off: streams_off.clone(),
+        };
+        let begin = records::begin(&facts, ctx.records_root.clone(), links);
+        let shared = self.shared.clone();
+        // A write that fails is a `record` entry in the log, and the state's
+        // `record.problem` (copied from the record's status by the run's thread); the
+        // run goes on.
+        let problem: ProblemFn = Box::new(move |words: String, data: Value| {
+            shared.add_log_data("record", words, Some(data));
+        });
+        let record = RunRecord::open(begin, &ctx.record, problem).map_err(|e| {
+            refuse(
+                "record_unwritable",
+                format!(
+                    "The run's record could not be written, so the run did not start: {} ({}). \
+                     Choose a data folder that can be written.",
+                    e.path.display(),
+                    e.reason
+                ),
+            )
+            .with_detail(json!({"path": e.path.display().to_string(), "reason": e.reason}))
+        })?;
+        self.shared.attach_record(record.log());
+        let folder = record.folder().display().to_string();
+        if let Some(why) = &streams_off {
+            self.shared.add_log_data(
+                "record",
+                format!("the run's streams are not recorded: {why}"),
+                Some(json!({"stream": null, "failed": why})),
+            );
+        }
+        self.shared.add_log("note", format!("records in {folder}"));
+        let mut v = (*self.view()).clone();
+        v.record = Some(RecordRef {
+            folder,
+            streams: streams_off.is_none(),
+            problem: None,
+        });
+        self.shared.publish(&self.id, v);
+        Ok(Kept { record, run_uid })
+    }
+
     /// A start refused before the core was installed: the run ends `arm_refused`.
     fn end_before_start(&self, e: &MethodError) {
         let mut v = (*self.view()).clone();
@@ -423,7 +566,7 @@ impl ExplorerRun {
     }
 
     /// The run's own thread: compose and publish the view, log, write the records.
-    fn watch(self: Arc<Self>, facts: Facts) {
+    fn watch(self: Arc<Self>, mut facts: Facts) {
         let mut track = Track::default();
         let mut wrote_head = false;
         let mut finished_at: Option<Instant> = None;
@@ -431,10 +574,29 @@ impl ExplorerRun {
             std::thread::sleep(PUBLISH_PERIOD);
             let snap = self.host.snapshot();
             let prev = self.view();
-            let v = self.compose(&snap, &prev, &facts, &mut track);
+            let mut v = self.compose(&snap, &prev, &facts, &mut track);
+            if let Some(r) = v.record.as_mut() {
+                r.problem = facts.status.problem();
+            }
             if !wrote_head && v.grid.actual {
                 wrote_head = true;
-                facts.records.write_head(&self.config, &self.derived, &v);
+                // The station has programmed its rate: the manifest's grid and the
+                // streams' rate become the station's own.
+                if let Some(record) = &facts.record {
+                    let mut grid = Map::new();
+                    grid.insert("grid".into(), records::grid_json(&v));
+                    record.patch_manifest(grid);
+                    let streams = if v.record.as_ref().is_some_and(|r| r.streams) {
+                        2
+                    } else {
+                        0
+                    };
+                    for k in 0..streams {
+                        let mut patch = Map::new();
+                        patch.insert("fs_hz".into(), crate::protocol::num(v.grid.fs_hz));
+                        record.patch_stream(k, patch);
+                    }
+                }
                 self.shared.add_log(
                     "station",
                     format!(
@@ -445,14 +607,14 @@ impl ExplorerRun {
                         crate::protocol::num(v.band_hz.1)
                     ),
                 );
-                if let Some(p) = facts.records.folder() {
-                    self.shared
-                        .add_log("note", format!("records in {}", p.display()));
-                }
             }
             let fs = v.grid.fs_hz.max(1.0);
             for i in self.data.take_intents() {
-                facts.records.intent(&i, fs);
+                self.shared.add_log_data(
+                    "intent",
+                    records::intent_words(&i),
+                    Some(records::intent_json(&i, fs)),
+                );
             }
             for (kind, text) in self.data.take_notes() {
                 self.shared.add_log(kind, text);
@@ -473,15 +635,44 @@ impl ExplorerRun {
             self.shared.publish(&self.id, v.clone());
             if done {
                 let at = *finished_at.get_or_insert_with(Instant::now);
-                if self.data.pump_done() || at.elapsed() > Duration::from_secs(5) {
-                    let (_, points) = self.data.survey();
-                    facts.records.finish(&points, v.peak, &v);
+                let pump_done = self.data.pump_done();
+                if pump_done || at.elapsed() > Duration::from_secs(5) {
+                    // The pump has gone: the service goes with the station, and the
+                    // streams' taps hand the writer their last frames. A pump that has
+                    // not gone is left alone (a stuck driver is not waited on).
+                    if pump_done {
+                        self.host.release_idle();
+                    }
+                    self.finish_record(&mut facts, &v);
                     // One last publish, so the final view has every log entry.
                     self.shared.publish(&self.id, v);
                     break;
                 }
             }
         }
+    }
+
+    /// The run's results and its end, to the record: the survey line and each
+    /// channel's last display spectrum, then `end.json`. Sends only; the writer
+    /// finishes on its own.
+    fn finish_record(&self, facts: &mut Facts, v: &ExplorerView) {
+        let Some(record) = facts.record.take() else {
+            return;
+        };
+        let (revision, points) = self.data.survey();
+        let channel = self.base.control.as_ref().map(|c| c.index);
+        let table = &facts.table;
+        for (name, d, arrays) in
+            records::survey_result(revision, channel, &self.base.control_unit, &points)
+                .into_iter()
+                .chain(records::spectra_result(&self.data.spectra(), table))
+        {
+            record.put_result(&name, d, arrays, None);
+        }
+        self.shared.detach_record();
+        let frames = self.shared.station_frame.load(Ordering::Relaxed);
+        let frames = (frames != crate::random::run::NO_FRAME).then_some(frames);
+        record.finish(records::end_map(&facts.run_uid, v, now_unix(), frames));
     }
 
     fn compose(
@@ -771,8 +962,19 @@ impl ExplorerRun {
 struct Facts {
     lookahead: u32,
     clock: &'static str,
-    records: Records,
+    /// The run's record until its end is sent.
+    record: Option<RunRecord>,
+    status: Arc<RecordStatus>,
+    run_uid: String,
+    /// The table the run started on, for the results' units.
+    table: ChannelTable,
     _guard: Option<hertzforge_station::lock::LockGuard>,
+}
+
+/// The record opened at start, and the run's identity in it.
+struct Kept {
+    record: RunRecord,
+    run_uid: String,
 }
 
 /// What the view composer carries from one snapshot to the next.

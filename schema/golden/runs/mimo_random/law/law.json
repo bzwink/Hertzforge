@@ -1,0 +1,13 @@
+{
+  "id": "pinv_closed",
+  "name": "pseudo-inverse, closed loop",
+  "version": "1.0.0",
+  "sha256": null,
+  "builtin": true,
+  "params": {},
+  "values": [],
+  "guards": {
+    "budget_fraction": 1.0,
+    "max_misses": 3
+  }
+}

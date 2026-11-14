@@ -107,6 +107,7 @@ export function loadMimoSetup(raw: string | null): MimoDraft {
 		out.identification = { ...base.identification, ...(saved.identification ?? {}) };
 		out.control = { ...base.control, ...(saved.control ?? {}) };
 		out.law = { ...base.law, ...(saved.law ?? {}) };
+		out.record = { ...base.record, ...(saved.record ?? {}) };
 		if (!Array.isArray(out.schedule?.levels)) out.schedule = base.schedule;
 		return out;
 	} catch {
@@ -241,6 +242,16 @@ export class MimoState {
 		return this.isLive || this.acq.isLive;
 	}
 
+	/** Enabled inputs plus drives in the table being edited: the channels a run's streams hold. */
+	get recordChannels(): number {
+		return this.rows.filter((r) => r.enabled).length;
+	}
+
+	/** The sample rate the run asks for, Hz. */
+	get recordRateHz(): number {
+		return this.setup.estimation.fs_hz;
+	}
+
 	readonly channels = $derived(testChannels(this.rows, this.setup));
 
 	/** The control space the setup uses: the operator's, or the one a reference brings. */
@@ -343,7 +354,7 @@ export class MimoState {
 
 	/** Errors and warnings per section. */
 	get counts(): Record<MimoSection, { errors: number; warnings: number }> {
-		const out = Object.fromEntries((['channels', 'reference', 'control', 'schedule', 'backend', 'predict'] as MimoSection[]).map((s) => [s, { errors: 0, warnings: 0 }])) as Record<MimoSection, { errors: number; warnings: number }>;
+		const out = Object.fromEntries((['channels', 'reference', 'control', 'schedule', 'record', 'backend', 'predict'] as MimoSection[]).map((s) => [s, { errors: 0, warnings: 0 }])) as Record<MimoSection, { errors: number; warnings: number }>;
 		for (const [k, v] of Object.entries(this.fieldErrors)) out[sectionOf(k)].errors += v.length;
 		for (const [k, v] of Object.entries(this.fieldWarnings)) out[sectionOf(k)].warnings += v.length;
 		out.backend.errors += this.acq.tableErrorCount;

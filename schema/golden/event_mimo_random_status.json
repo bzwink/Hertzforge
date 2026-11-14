@@ -148,6 +148,11 @@
    ]
   },
   "excluded": [],
-  "end": null
+  "end": null,
+  "record": {
+   "folder": "/data/runs/20261113-140000_mimo_random_m-0003",
+   "streams": "on",
+   "problem": null
+  }
  }
 }

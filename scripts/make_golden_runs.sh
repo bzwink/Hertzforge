@@ -23,3 +23,11 @@ HERTZFORGE_WRITE_GOLDEN_RUNS=1 cargo test --locked -p sds-control --test classic
   -- --exact todays_code_writes_the_golden_classical_shock_run_folder --nocapture </dev/null
 HERTZFORGE_WRITE_GOLDEN_RUNS=1 cargo test --locked -p sds-control --test mixed_golden_run \
   -- --exact todays_code_writes_the_golden_mixed_run_folder --nocapture </dev/null
+HERTZFORGE_WRITE_GOLDEN_RUNS=1 cargo test --locked -p sds-control --test explorer_golden_run \
+  -- --exact todays_code_writes_the_golden_explorer_run_folder --nocapture </dev/null
+HERTZFORGE_WRITE_GOLDEN_RUNS=1 cargo test --locked -p sds-control --test mimo_random_golden_run \
+  -- --exact todays_code_writes_the_golden_mimo_random_run_folder --nocapture </dev/null
+HERTZFORGE_WRITE_GOLDEN_RUNS=1 cargo test --locked -p sds-control --test srs_golden_run \
+  -- --exact todays_code_writes_the_golden_srs_run_folder --nocapture </dev/null
+HERTZFORGE_WRITE_GOLDEN_RUNS=1 cargo test --locked -p sds-control --test twr_golden_run \
+  -- --exact todays_code_writes_the_golden_twr_run_folder --nocapture </dev/null

@@ -263,6 +263,49 @@ pub struct MimoRandomService {
     guards_last: GuardSummary,
     faults: Vec<String>,
     pub(crate) records: Option<crate::records::RunRecorder>,
+    /// Keep copies of each loop and law call for a host's own record
+    /// ([`Self::keep_for_record`]); taken with [`Self::take_kept`].
+    keep: bool,
+    kept: Kept,
+}
+
+/// One loop as a host's record takes it: what [`crate::records::RunRecorder::write_loop`]
+/// is given, copied.
+#[derive(Debug, Clone)]
+pub struct KeptLoop {
+    pub summary: crate::records::LoopSummary,
+    /// The control-space response at full level (`None` before the first judged loop).
+    pub response_full: Option<HermitianStack>,
+    /// The physical drive in force at full level.
+    pub drive_full: HermitianStack,
+    /// Per line and control (line-major), the error against the reference, dB; NaN
+    /// out of band.
+    pub error_lines: Vec<f64>,
+    pub at_full_level: bool,
+    pub segment_s: f64,
+}
+
+/// One law call as a host's record takes it: the inputs that change from call to
+/// call, and what the law returned.
+#[derive(Debug, Clone)]
+pub struct KeptLawCall {
+    pub seed: bool,
+    pub loop_index: u64,
+    pub response_dof: f64,
+    pub response: HermitianStack,
+    pub frf: MatrixStack,
+    pub multiple_coherence: Vec<f64>,
+    pub last_drive: Option<HermitianStack>,
+    pub response_drive_csd: Option<MatrixStack>,
+    /// The law's output as it returned it, or the words of a call that returned none.
+    pub outcome: Result<MimoLoopOutputs, String>,
+}
+
+/// What [`MimoRandomService::take_kept`] hands over.
+#[derive(Debug, Clone, Default)]
+pub struct Kept {
+    pub loops: Vec<KeptLoop>,
+    pub law_calls: Vec<KeptLawCall>,
 }
 
 /// The `n` by `n` identity on one line.
@@ -472,6 +515,8 @@ impl MimoRandomService {
             guards_last: GuardSummary::default(),
             faults: Vec::new(),
             records: None,
+            keep: false,
+            kept: Kept::default(),
         })
     }
 
@@ -492,6 +537,18 @@ impl MimoRandomService {
     pub fn with_law_clock(mut self, clock: Arc<dyn LawClock>) -> Self {
         self.law_clock = clock;
         self
+    }
+
+    /// Keep a copy of every loop and every law call for a host that records the run
+    /// itself, taken between calls with [`Self::take_kept`]. Copies only: nothing is
+    /// written here.
+    pub fn keep_for_record(&mut self, on: bool) {
+        self.keep = on;
+    }
+
+    /// The loops and law calls kept since the last take.
+    pub fn take_kept(&mut self) -> Kept {
+        std::mem::take(&mut self.kept)
     }
 
     // --- read-only surface --------------------------------------------------------
@@ -519,6 +576,10 @@ impl MimoRandomService {
     }
     pub fn identification(&self) -> Option<&IdentificationSet> {
         self.ident.as_ref()
+    }
+    /// True when the identification set in use was loaded rather than measured.
+    pub fn identification_loaded(&self) -> bool {
+        self.ident_loaded
     }
     pub fn level_db(&self) -> f64 {
         self.schedule_level_db
@@ -2301,6 +2362,22 @@ impl MimoRandomService {
             }
         });
         self.timing.law_ms = t0.elapsed().as_secs_f64() * 1e3;
+        if self.keep {
+            self.kept.law_calls.push(KeptLawCall {
+                seed: loop_index == 0,
+                loop_index,
+                response_dof: dof,
+                response: response.clone(),
+                frf: frf.clone(),
+                multiple_coherence: coherence.clone(),
+                last_drive: last_drive.clone(),
+                response_drive_csd: csd_owned.clone(),
+                outcome: match &r {
+                    Ok(o) => Ok(o.clone()),
+                    Err(m) => Err(m.words()),
+                },
+            });
+        }
         if self.cfg.records.law_inputs {
             let seed = loop_index == 0;
             let params: Vec<serde_json::Value> = match (&self.law_factory, seed) {
@@ -2721,6 +2798,16 @@ impl MimoRandomService {
     }
 
     fn after_loop(&mut self) {
+        if self.keep {
+            self.kept.loops.push(KeptLoop {
+                summary: self.loop_summary(),
+                response_full: self.ls.response_full.clone(),
+                drive_full: self.ls.drive_full.clone(),
+                error_lines: self.ls.error_lines.clone(),
+                at_full_level: self.state == MimoState::FullLevel,
+                segment_s: self.loop_cfg.segment_seconds(),
+            });
+        }
         if let Some(r) = self.records.as_mut() {
             let summary = crate::records::LoopSummary {
                 loop_index: self.loop_count,
@@ -2750,6 +2837,19 @@ impl MimoRandomService {
                     let _ = self.request_stop();
                 }
             }
+        }
+    }
+
+    fn loop_summary(&self) -> crate::records::LoopSummary {
+        crate::records::LoopSummary {
+            loop_index: self.loop_count,
+            level_db: self.schedule_level_db,
+            state: self.state,
+            error_db: self.ls.error_db.clone(),
+            drive_rms: self.ls.drive_rms.clone(),
+            guards: self.guards_last.clone(),
+            timing: self.timing,
+            law_misses: self.law_misses,
         }
     }
 

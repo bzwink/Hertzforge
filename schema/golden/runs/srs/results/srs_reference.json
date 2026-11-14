@@ -1,0 +1,73 @@
+{
+  "name": "srs_reference",
+  "kind": "srs_reference",
+  "abscissa": {
+    "kind": "frequency",
+    "unit": "Hz",
+    "array": "frequency"
+  },
+  "channels": {
+    "responses": [
+      1
+    ]
+  },
+  "q": 10,
+  "srs_kind": "maximax",
+  "description": "the target SRS at full level on the run's bands, with the envelope's alarm band (band) and abort band (abort)",
+  "arrays": [
+    {
+      "name": "frequency",
+      "dtype": "f8",
+      "shape": [
+        7
+      ],
+      "unit": "Hz",
+      "offset": 0
+    },
+    {
+      "name": "reference",
+      "dtype": "f8",
+      "shape": [
+        7
+      ],
+      "unit": "g",
+      "offset": 56
+    },
+    {
+      "name": "band_low",
+      "dtype": "f8",
+      "shape": [
+        7
+      ],
+      "unit": "g",
+      "offset": 112
+    },
+    {
+      "name": "band_high",
+      "dtype": "f8",
+      "shape": [
+        7
+      ],
+      "unit": "g",
+      "offset": 168
+    },
+    {
+      "name": "abort_low",
+      "dtype": "f8",
+      "shape": [
+        7
+      ],
+      "unit": "g",
+      "offset": 224
+    },
+    {
+      "name": "abort_high",
+      "dtype": "f8",
+      "shape": [
+        7
+      ],
+      "unit": "g",
+      "offset": 280
+    }
+  ]
+}

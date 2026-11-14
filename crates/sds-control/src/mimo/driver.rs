@@ -186,6 +186,9 @@ pub struct MimoStatus {
     pub end: Option<End>,
     /// Display frames are due: from the start of identification.
     pub streaming: bool,
+    /// The run's record from arm on: its folder, whether it keeps the streams, and
+    /// the latest problem writing it.
+    pub record: Option<crate::random::view::RecordRef>,
 }
 
 /// One quantity a display asks for, with its selector resolved to positions
@@ -303,6 +306,12 @@ pub struct StartContext {
     pub table: Option<hertzforge_channel_table::ChannelTable>,
     /// The NI devices the station selection names (empty on the simulator).
     pub ni_devices: Vec<String>,
+    /// The run's id (`m-0001`), for its record's folder and manifest.
+    pub run_id: String,
+    /// The channel table's revision, and the devices of the last scan (their models
+    /// and serial numbers), for the run's record.
+    pub revision: u64,
+    pub devices: Vec<hertzforge_hal::DiscoveredDevice>,
 }
 
 /// An identification set on disk, as the protocol describes it.

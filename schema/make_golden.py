@@ -510,6 +510,9 @@ MIMO_IM = [0.0, 0.016, 0.0] * 8
 
 MIMO_SETUP = {
     'title': 'Two-Axis Random',
+    'operator': 'A. Operator', 'article': 'Bracket, serial 7', 'notes': 'first article',
+    'specification': {'document': 'Test procedure 12', 'clause': '4.2'},
+    'record': {'streams': True},
     'channels': {
         'controls': [{'channel': 1, 'alarm_db': [3, 3], 'abort_db': [6, 6]},
                      {'channel': 2, 'alarm_db': [3, 3], 'abort_db': [6, 6]}],
@@ -548,6 +551,7 @@ def _mimo_state(**over) -> dict:
         'remaining_at_level_s': None, 'loop': 0, 'alarm': False, 'control_error_db': [],
         'gates': None, 'caps': [], 'drive_rms_v': [], 'law': MIMO_LAW_REF, 'faults': [],
         'override': None, 'overrides': [], 'prediction': None, 'excluded': [], 'end': None,
+        'record': None,
     }
     state.update(over)
     return state
@@ -582,7 +586,9 @@ MIMO_RUNNING = _mimo_state(
                 'has_achievable': False, 'unreachable_db': [0, 0], 'drive_accel': [1.25, 1.1],
                 'accel_control': [0, 1],
                 'feasibility': [{'verdict': 'pass', 'message': ''},
-                                {'verdict': 'not_evaluated', 'message': 'no shaker record'}]})
+                                {'verdict': 'not_evaluated', 'message': 'no shaker record'}]},
+    record={'folder': '/data/runs/20261113-140000_mimo_random_m-0003', 'streams': 'on',
+            'problem': None})
 
 LAW_PINV_CLOSED = {'id': 'pinv_closed',
      'world': 'mimo',
@@ -1437,7 +1443,9 @@ SRS_CONFIG = {
                     'moving_mass_lb': {'armature': 45, 'slip_table': 0, 'drive_adapter': 3,
                                        'fixturing': 10, 'test_article': 12},
                     'residual_velocity_ips': 0.1, 'residual_disp_in': 0.001},
-    'capture': {'auto_start': False, 'run_name': 'srs_shock'},
+    'operator': 'Operator', 'article': 'Bracket', 'notes': '',
+    'specification': {'document': 'Example procedure', 'clause': '4.2'},
+    'record': {'streams': True},
     'metadata': [{'key': 'run_number', 'label': 'Run Number', 'value': '7'},
                  {'key': 'test_article', 'label': 'Test Article', 'value': 'Bracket'},
                  {'key': 'serial_number', 'label': 'SN', 'value': '0042'},
@@ -2319,7 +2327,9 @@ TWR_CONFIG = {
                'divergence_plays': 3, 'divergence_rise_frac': 0.1},
     'feasibility': {'peak_accel': None, 'peak_velocity_ips': None, 'disp_pkpk_in': 1.0,
                     'kinematics_hp_hz': 5},
-    'capture': {'auto_start': False, 'run_name': 'twr_run'},
+    'operator': 'Operator', 'article': 'Bracket', 'notes': '',
+    'specification': {'document': 'Example procedure', 'clause': '4.2'},
+    'record': {'streams': True},
     'metadata': TWR_METADATA,
 }
 

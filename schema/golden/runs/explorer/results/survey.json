@@ -1,0 +1,40 @@
+{
+  "name": "survey",
+  "kind": "survey",
+  "abscissa": {
+    "kind": "frequency",
+    "unit": "Hz",
+    "array": "frequency"
+  },
+  "channels": {
+    "responses": [
+      1
+    ]
+  },
+  "description": "the survey line: the control row's amplitude at the tone, peak, at each frequency the tone visited",
+  "peak": {
+    "hz": 200,
+    "level": 0.0
+  },
+  "revision": 1,
+  "arrays": [
+    {
+      "name": "frequency",
+      "dtype": "f8",
+      "shape": [
+        1
+      ],
+      "unit": "Hz",
+      "offset": 0
+    },
+    {
+      "name": "level",
+      "dtype": "f8",
+      "shape": [
+        1
+      ],
+      "unit": "g",
+      "offset": 8
+    }
+  ]
+}

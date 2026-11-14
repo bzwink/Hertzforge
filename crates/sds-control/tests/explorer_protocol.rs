@@ -246,7 +246,8 @@ async fn explorer_a_run_through_the_protocol_from_configure_to_stop() {
         "{texts:?}"
     );
 
-    // The run folder: the head, the intents, the survey and the end.
+    // The run folder: the manifest, the table, the setup, the log with every intent,
+    // the streams, the results and the end.
     let folder = root.join("explorer_protocol");
     for _ in 0..100 {
         if folder.join("end.json").exists() {
@@ -254,11 +255,25 @@ async fn explorer_a_run_through_the_protocol_from_configure_to_stop() {
         }
         tokio::time::sleep(Duration::from_millis(50)).await;
     }
-    for f in ["explorer.json", "intents.jsonl", "survey.json", "end.json"] {
+    for f in [
+        "run.json",
+        "table.json",
+        "setup.json",
+        "log.jsonl",
+        "streams/inputs/stream.json",
+        "streams/drives/stream.json",
+        "results/survey.json",
+        "end.json",
+    ] {
         assert!(folder.join(f).exists(), "{f} in {}", folder.display());
     }
-    let intents = std::fs::read_to_string(folder.join("intents.jsonl")).unwrap();
-    assert!(intents.lines().count() >= 5, "{intents}");
+    let log = std::fs::read_to_string(folder.join("log.jsonl")).unwrap();
+    let intents = log
+        .lines()
+        .map(|l| serde_json::from_str::<Value>(l).unwrap())
+        .filter(|l| l["kind"] == "intent")
+        .count();
+    assert!(intents >= 5, "{log}");
     let end: Value =
         serde_json::from_str(&std::fs::read_to_string(folder.join("end.json")).unwrap()).unwrap();
     assert_eq!(end["end"]["outcome"], "operator_stop");

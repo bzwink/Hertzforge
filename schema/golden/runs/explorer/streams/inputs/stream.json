@@ -1,0 +1,23 @@
+{
+  "kind": "inputs",
+  "fs_hz": 2048,
+  "channels": [
+    {
+      "index": 1,
+      "unit": "g",
+      "description": "Control"
+    },
+    {
+      "index": 3,
+      "unit": "g",
+      "description": "Fixture"
+    }
+  ],
+  "first_station_frame": 0,
+  "name": "inputs",
+  "frames": 256,
+  "gaps": [],
+  "complete": true,
+  "fault": null,
+  "cut_from_frames": 8192
+}

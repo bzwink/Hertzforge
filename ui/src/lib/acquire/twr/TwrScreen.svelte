@@ -95,7 +95,7 @@
 {#snippet station()}<StationPanel acq={twr.acq} />{/snippet}
 
 {#snippet run()}
-	<TwrRunView {twr} {views} {station} {abortKeys} onoverride={() => (overrideOpen = true)} onpopout={(id) => app.openDisplayWindow(id, 'twr')} />
+	<TwrRunView {twr} {views} {station} {abortKeys} onoverride={() => (overrideOpen = true)} onpopout={(id) => app.openDisplayWindow(id, 'twr')} opener={app.twrRunOpen} />
 {/snippet}
 
 <PulseScreen

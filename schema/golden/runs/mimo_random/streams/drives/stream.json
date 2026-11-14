@@ -1,0 +1,37 @@
+{
+  "kind": "drives",
+  "fs_hz": 4096,
+  "channels": [
+    {
+      "index": 5,
+      "unit": "V",
+      "description": "Shaker 1"
+    },
+    {
+      "index": 6,
+      "unit": "V",
+      "description": "Shaker 2"
+    },
+    {
+      "index": 7,
+      "unit": "V",
+      "description": "Shaker 3"
+    },
+    {
+      "index": 8,
+      "unit": "V",
+      "description": "Shaker 4"
+    }
+  ],
+  "first_station_frame": 0,
+  "output_latency_frames": {
+    "frames": 4,
+    "how": "declared"
+  },
+  "name": "drives",
+  "frames": 128,
+  "gaps": [],
+  "complete": true,
+  "fault": null,
+  "cut_from_frames": 159760
+}

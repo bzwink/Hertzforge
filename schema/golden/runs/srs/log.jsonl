@@ -1,0 +1,22 @@
+{"seq":0,"at_unix":1794240000.25,"frame":null,"kind":"state","text":"configured \"Golden SRS\" on sim"}
+{"seq":1,"at_unix":1794240001.25,"frame":null,"kind":"state","text":"idle to armed","data":{"from":"idle","to":"armed","state":"armed"}}
+{"seq":2,"at_unix":1794240002.25,"frame":null,"kind":"station","text":"armed on sim at 2048 Hz, records of 182 samples","data":{"class":"sim","fs_hz":2048.0,"record_len":182}}
+{"seq":3,"at_unix":1794240003.25,"frame":null,"kind":"state","text":"armed to sysid","data":{"from":"armed","to":"sysid","state":"running"}}
+{"seq":4,"at_unix":1794240004.25,"frame":null,"kind":"note","text":"started; identification at -20 dB, at most 0.5 V pk","data":{"action":"start","level_db":-20.0,"vpk_cap":0.5}}
+{"seq":5,"at_unix":1794240005.25,"frame":null,"kind":"note","text":"This run is Path B (host-closes-loop): Hertzforge synthesizes every pulse, plays it into the plant, and closes the SRS iteration on the host. The plant today is the hertzforge-hal-sim synthetic resonance plant; real-hardware Path B homes (direct-DAC hardware, NI) are gated on separate workstreams."}
+{"seq":6,"at_unix":1794240006.25,"frame":null,"kind":"note","text":"No shaker configured; feasibility NOT evaluated. Arming allowed without a shaker-limit block."}
+{"seq":7,"at_unix":1794240007.25,"frame":1133,"kind":"note","text":"identified at -20 dB: mean coherence 0.997","data":{"identified":true,"level_db":-20.0,"coherence_mean":0.9974293248881112,"channels":["control"]}}
+{"seq":8,"at_unix":1794240008.25,"frame":1133,"kind":"note","text":"identification complete; holding for review. Nothing drives until proceed_after_review()."}
+{"seq":9,"at_unix":1794240009.25,"frame":1133,"kind":"note","text":"operator reviewed the system ID and proceeded"}
+{"seq":10,"at_unix":1794240010.25,"frame":1133,"kind":"note","text":"control law: SRS ratio 0.1.0 (built in)"}
+{"seq":11,"at_unix":1794240011.25,"frame":1133,"kind":"state","text":"sysid to waiting","data":{"from":"sysid","to":"waiting","state":"running"}}
+{"seq":12,"at_unix":1794240012.25,"frame":1133,"kind":"note","text":"seeded; the predicted full-level drive is 1.2141 V pk","data":{"seeded":true,"drive_vpk":1.214105710077082,"drive_vpk_ceiling":5.0,"drive_vpk_abort":8.0,"notch":null}}
+{"seq":13,"at_unix":1794240013.25,"frame":1133,"kind":"state","text":"waiting to firing","data":{"from":"waiting","to":"firing","state":"running"}}
+{"seq":14,"at_unix":1794240014.25,"frame":1315,"kind":"alarm","text":"2 bands outside the alarm band; the worst 4.28 dB","data":{"bands":2,"worst_err_db":4.278215905121077}}
+{"seq":15,"at_unix":1794240015.25,"frame":1315,"kind":"pulse","text":"pulse 1 at -6 dB: 0.461 g, worst band 4.28 dB","data":{"pulse":0,"level_db":-6.0,"scheduled_db":-6.0,"peak_g":0.4613859653472901,"worst_err_db":4.278215905121077,"alarm_bands":2,"abort_bands":0,"measured":true,"passed":false}}
+{"seq":16,"at_unix":1794240016.25,"frame":1315,"kind":"level","text":"level -6 to 0 dB","data":{"from_db":-6.0,"to_db":0.0,"auto":true}}
+{"seq":17,"at_unix":1794240017.25,"frame":1315,"kind":"state","text":"firing to waiting","data":{"from":"firing","to":"waiting","state":"running"}}
+{"seq":18,"at_unix":1794240018.25,"frame":1315,"kind":"state","text":"waiting to firing","data":{"from":"waiting","to":"firing","state":"running"}}
+{"seq":19,"at_unix":1794240019.25,"frame":1497,"kind":"pulse","text":"pulse 2 at 0 dB: 0.738 g, worst band 2.31 dB","data":{"pulse":1,"level_db":0.0,"scheduled_db":0.0,"peak_g":0.7380423545837402,"worst_err_db":2.309596998358288,"alarm_bands":0,"abort_bands":0,"measured":true,"passed":true}}
+{"seq":20,"at_unix":1794240020.25,"frame":1497,"kind":"state","text":"firing to stopped","data":{"from":"firing","to":"stopped","state":"finished"}}
+{"seq":21,"at_unix":1794240021.25,"frame":1497,"kind":"state","text":"ended (completed): The schedule finished.","data":{"outcome":"completed","by":null,"end":{"outcome":"completed","message":"The schedule finished.","at_s":30.0,"level_db":0,"pulse":1,"trip":null}}}

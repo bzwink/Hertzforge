@@ -2,7 +2,7 @@
 	/**
 	 * The operator's screen for MIMO Random, in the format single-output Random set: a link back
 	 * to the test-type chooser, three steps (Setup, Predict, Run), the run bar always in view, and
-	 * the setup in sections (Channels, Reference, Control, Schedule, Backend) with the setup
+	 * the setup in sections (Channels, Reference, Control, Schedule, Run Record, Backend) with the setup
 	 * summary beside every section, so whatever is missing is one click away. After
 	 * identification the service holds for the prediction, which comes forward by itself; engaging
 	 * brings the run forward.
@@ -13,6 +13,7 @@
 	import Findings from '../Findings.svelte';
 	import Notices from '../Notices.svelte';
 	import RunBar from '../RunBar.svelte';
+	import RunRecordEditor from '../RunRecordEditor.svelte';
 	import ScheduleEditor from '../ScheduleEditor.svelte';
 	import MimoBackend from './MimoBackend.svelte';
 	import MimoChannels from './MimoChannels.svelte';
@@ -45,6 +46,7 @@
 		{ id: 'reference', label: 'Reference' },
 		{ id: 'control', label: 'Control' },
 		{ id: 'schedule', label: 'Schedule' },
+		{ id: 'record', label: 'Run Record' },
 		{ id: 'backend', label: 'Backend' }
 	];
 
@@ -205,6 +207,10 @@
 						<div class="narrow">
 							<ScheduleEditor acq={mimo} />
 						</div>
+					{:else if section === 'record'}
+						<div class="narrow">
+							<RunRecordEditor acq={mimo} kept="The setup, the channel table, the log, the reference, the identification, every loop's spectra and the law's calls are still kept." />
+						</div>
 					{:else}
 						<MimoBackend {mimo} />
 					{/if}
@@ -233,7 +239,7 @@
 		</div>
 	{:else}
 		<div class="body fit" bind:this={body} data-testid="run-view">
-			<MimoRunView views={app.mimoViews} onpopout={(id) => app.openDisplayWindow(id, 'mimo_random')} {geometry} bands={runBands} diagnostics={mimo.law?.diagnostics ?? []}>
+			<MimoRunView views={app.mimoViews} onpopout={(id) => app.openDisplayWindow(id, 'mimo_random')} {geometry} bands={runBands} diagnostics={mimo.law?.diagnostics ?? []} opener={app.mimoRunOpen}>
 				{#snippet station()}<StationPanel acq={mimo.acq} />{/snippet}
 				{#snippet end()}
 					<button class="btn sm" data-testid="back-to-setup" onclick={() => (mimo.step = 'setup')} title={mimo.isLive ? 'Look at the setup. It stays locked while the run is live.' : 'Back to the setup.'}>

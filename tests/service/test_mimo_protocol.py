@@ -88,6 +88,11 @@ def test_the_packed_reference_holds_the_upper_triangle_of_each_line():
 
 def test_a_setup_carries_its_channels_reference_and_schedule(validate):
     setup = _text('request_mimo_random_setup')['params']['setup']
+    assert set(setup) == {'title', 'channels', 'space', 'reference', 'law', 'estimation',
+                          'identification', 'control', 'schedule', 'backend', 'operator',
+                          'article', 'notes', 'specification', 'record'}
+    _refused(validate, {**setup, 'record': {'streams': 'yes'}}, 'mimoSetup')
+    _refused(validate, {**setup, 'specification': {'document': 'x', 'page': 3}}, 'mimoSetup')
     for field in ('channels', 'reference', 'schedule'):
         _refused(validate, {k: v for k, v in setup.items() if k != field}, 'mimoSetup')
     drives = copy.deepcopy(setup)
@@ -111,6 +116,17 @@ def test_a_validation_is_ok_exactly_when_it_has_no_errors(validate):
     assert good['ok'] and not bad['ok']
     _refused(validate, {**good, 'ok': False}, 'mimoValidation')
     _refused(validate, {**bad, 'ok': True}, 'mimoValidation')
+
+
+def test_the_status_names_its_record(validate):
+    status = _text('event_mimo_random_status')['data']
+    assert set(status['record']) == {'folder', 'streams', 'problem'}
+    validate({**status, 'record': None}, 'mimoStatus')
+    validate({**status, 'record': {**status['record'], 'problem': 'the disk is full'}},
+             'mimoStatus')
+    _refused(validate, {**status, 'record': {**status['record'], 'streams': True}},
+             'mimoStatus')
+    _refused(validate, {k: v for k, v in status.items() if k != 'record'}, 'mimoStatus')
 
 
 def test_the_status_ends_exactly_when_finished(validate):

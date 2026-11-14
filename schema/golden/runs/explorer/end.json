@@ -1,0 +1,107 @@
+{
+  "run_uid": "golden-explorer",
+  "run_id": "explorer-0001",
+  "end": {
+    "outcome": "operator_stop",
+    "message": "Stopped by Shell (controller): the controlled stop ramped the drive to 0 V.",
+    "at_s": 4.0,
+    "at_hz": 200,
+    "vpk": 0.1,
+    "ramp_s": 0.25,
+    "trip": null
+  },
+  "at_unix": 1794240060.25,
+  "station_frames": 8192,
+  "measured": {
+    "channels": [
+      {
+        "index": 1,
+        "unit": "g",
+        "rms": 0.0
+      },
+      {
+        "index": 3,
+        "unit": "g",
+        "rms": 0.0
+      }
+    ],
+    "measured_hz": null,
+    "control": {
+      "index": 1,
+      "velocity_ips": 0.0,
+      "displacement_mil": 0.0,
+      "settling": false
+    },
+    "peak": {
+      "hz": 200,
+      "level": 0.0
+    }
+  },
+  "state": {
+    "run_id": "explorer-0001",
+    "state": "finished",
+    "phase": "stopped",
+    "title": "Golden Explorer",
+    "source": "SIM",
+    "station": {
+      "kind": "sim",
+      "class": "sim",
+      "devices": []
+    },
+    "grid": {
+      "requested_fs_hz": 2048,
+      "fs_hz": 2048,
+      "block_frames": 64,
+      "lookahead_frames": 4,
+      "actual": true
+    },
+    "clock": "shared",
+    "band_hz": [
+      20,
+      800
+    ],
+    "max_drive_vpk": 0.5,
+    "slew": {
+      "freq_oct_per_s": 1,
+      "drive_db_per_s": 200
+    },
+    "pipeline_frames": 8,
+    "t_s": 4.0,
+    "frequency_hz": 200,
+    "target_hz": 200,
+    "drive_vpk": 0,
+    "target_vpk": 0,
+    "sweep": null,
+    "health": null,
+    "stall": null,
+    "stop": "operator",
+    "end": {
+      "outcome": "operator_stop",
+      "message": "Stopped by Shell (controller): the controlled stop ramped the drive to 0 V.",
+      "at_s": 4.0,
+      "at_hz": 200,
+      "vpk": 0.1,
+      "ramp_s": 0.25,
+      "trip": null
+    },
+    "record": {
+      "folder": "Hertzforge_Data/golden_explorer",
+      "streams": "on",
+      "problem": null
+    }
+  },
+  "streams": {
+    "inputs": {
+      "frames": 256,
+      "drops": 0,
+      "gaps": 0,
+      "fault": null
+    },
+    "drives": {
+      "frames": 256,
+      "drops": 0,
+      "gaps": 0,
+      "fault": null
+    }
+  }
+}

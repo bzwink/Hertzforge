@@ -1,0 +1,55 @@
+{
+  "name": "control_spectra",
+  "kind": "psd",
+  "abscissa": {
+    "kind": "frequency",
+    "unit": "Hz",
+    "start": 160.0,
+    "step": 2.0
+  },
+  "channels": {
+    "responses": [
+      1,
+      2,
+      3,
+      4
+    ],
+    "labels": [
+      "Control 1",
+      "Control 2",
+      "Control 3",
+      "Control 4"
+    ]
+  },
+  "band": [
+    80,
+    84
+  ],
+  "description": "each loop that judged the response: every controlled quantity's spectral density referred to full level and its error against the reference, dB",
+  "records": {
+    "index": "loop_index",
+    "level": "level_db"
+  },
+  "arrays": [
+    {
+      "name": "values",
+      "dtype": "f8",
+      "shape": [
+        4,
+        4
+      ],
+      "unit": "g^2/Hz",
+      "offset": 0
+    },
+    {
+      "name": "error_db",
+      "dtype": "f8",
+      "shape": [
+        4,
+        4
+      ],
+      "unit": "dB",
+      "offset": 128
+    }
+  ]
+}

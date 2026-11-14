@@ -24,7 +24,7 @@ import type {
 	MimoSetup,
 	MimoTransform
 } from '$lib/protocol/mimo';
-import { newBreakpoint, type BreakpointDraft, type FieldErrors, type LevelDraft } from '../setup';
+import { defaultRecord, newBreakpoint, type BreakpointDraft, type FieldErrors, type LevelDraft, type RecordDraft } from '../setup';
 import { lawWireParams, type LawValue } from '../law/lawForm';
 
 // ---------------------------------------------------------------------------------------------
@@ -130,6 +130,8 @@ export interface MimoDraft {
 	identification: { level_db: number; frames: number; noise_frames: number; coherence_floor: number; condition_limit: number; review: boolean };
 	control: { level_ramp_s: number; shutdown_ramp_s: number; max_loops_out: number; cap_up_db: number; cap_down_db: number; law_budget: number; law_misses: number };
 	schedule: { mode: LadderMode; levels: LevelDraft[]; full_level_s: number };
+	/** The run's record: the operator's words and whether the time histories are kept (Random's). */
+	record: RecordDraft;
 }
 
 export type { LawValue };
@@ -185,7 +187,8 @@ export function defaultMimoSetup(): MimoDraft {
 				{ db: 0, dwell_s: 0 }
 			],
 			full_level_s: 60
-		}
+		},
+		record: defaultRecord()
 	};
 }
 
@@ -496,8 +499,15 @@ export function toWireSetup(d: MimoDraft, x: WireInputs): MimoSetup | null {
 	const t = testChannels(x.rows, d);
 	const last = d.schedule.levels.length - 1;
 	const params = lawWireParams(x.law, d.law.params);
+	const r = d.record;
+	const [document, clause] = [r.document.trim(), r.clause.trim()];
 	const setup: MimoSetup = {
 		title: d.title.trim(),
+		operator: r.operator.trim(),
+		article: r.article.trim(),
+		notes: r.notes.trim(),
+		specification: document || clause ? { document, clause } : null,
+		record: { streams: r.streams },
 		channels: {
 			controls: t.controls.map((r) => {
 				const c = controlOf(d, r.index);
@@ -597,9 +607,10 @@ export function byKey(items: ReportItem[], setup: MimoSetup | null): FieldErrors
 }
 
 /** The section a key belongs to. */
-export type MimoSection = 'channels' | 'reference' | 'control' | 'schedule' | 'backend' | 'predict';
+export type MimoSection = 'channels' | 'reference' | 'control' | 'schedule' | 'record' | 'backend' | 'predict';
 
 export function sectionOf(key: string): MimoSection {
+	if (/^(operator|article|notes|specification|record)(\.|$)/.test(key)) return 'record';
 	if (/^(channel|drive|control|limit)\.|^channels|^space|^title/.test(key)) return 'channels';
 	if (/^reference/.test(key)) return 'reference';
 	if (/^schedule/.test(key)) return 'schedule';
@@ -696,6 +707,7 @@ export function spaceErrors(rows: ChannelRow[], d: MimoDraft, space: EffectiveSp
 export function settingErrors(d: MimoDraft): FieldErrors {
 	const out: FieldErrors = {};
 	if (!d.title.trim()) add(out, 'title', 'Give the test a title.');
+	if (d.record.clause.trim() && !d.record.document.trim()) add(out, 'specification.document', 'Name the document this clause is from.');
 	const e = d.estimation;
 	need(out, 'estimation.fs_hz', e.fs_hz);
 	need(out, 'estimation.n_pts', e.n_pts, true);

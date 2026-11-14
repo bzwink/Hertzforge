@@ -1,30 +1,64 @@
-//! The run folder (schema/PROTOCOL.md, "Explorer Records"): `explorer.json` once the run
-//! has armed, `intents.jsonl` a line per intent the run took, `survey.json` and
-//! `end.json` at the end. Written by the run's own thread, never by the pump. No
-//! samples are recorded. A run whose name is taken gets the first free `<name>-<n>`.
+//! What an Explorer run puts in its run folder (`docs/run-folder.md`, "What an
+//! Explorer Run Saves"): the manifest, the channel table and the setup at start, the
+//! log (every steering verb the run took is an entry with its facts), the two streams
+//! (every acquired input as read, the drive as the device accepted it), the results at
+//! the end (the survey line and each channel's last display spectrum), and the end with
+//! what the run measured.
+//!
+//! The writing is the shared record's ([`crate::record`]), on its own thread; this
+//! module only says what is written, in the reader's form (`hertzforge.io.run_folder`).
+//! Values are in the channels' own units, as the table names them: the analysis side
+//! converts.
 
-use super::view::{state_json, ExplorerView};
+use super::config::{round, Derived, WireExplorer};
+use super::view::{state_json, End, ExplorerView};
 use crate::protocol::num;
-use hertzforge_explorer_host::{Adoption, IntentKind, IntentRecord, SweepDirection};
-use serde_json::{json, Value};
-use std::io::Write;
-use std::path::{Path, PathBuf};
+use crate::random::record::{
+    build_value, drive_rows, input_rows, sim_value, start_json, station_member,
+    stream_channel_value, table_json, Described,
+};
+use crate::record::{tap::TapLink, ArrayValues, Begin, ResultArray, StreamSpec};
+use crate::station::{source_of, StationPlan};
+use crate::table::unit_name;
+use hertzforge_channel_table::ChannelTable;
+use hertzforge_explorer_host::{Adoption, AmplitudeRamp, IntentKind, IntentRecord, SweepDirection};
+use hertzforge_hal::{Caps, DiscoveredDevice};
+use hertzforge_module_abi::StationClass;
+use serde_json::{json, Map, Value};
+use std::path::PathBuf;
 
-/// The run folder, or nothing when it could not be made (the run goes on; the log says
-/// so through the missing "records in" line).
-pub struct Records {
-    folder: Option<PathBuf>,
+/// The facts a run's record begins with, at start, before the station is opened.
+pub struct StartFacts<'a> {
+    pub run_id: &'a str,
+    pub run_uid: &'a str,
+    pub wire: &'a WireExplorer,
+    pub table: &'a ChannelTable,
+    pub revision: u64,
+    pub plan: &'a StationPlan,
+    pub class: StationClass,
+    pub provenance: &'a hertzforge_station::ProvenanceBasis,
+    pub devices: &'a [DiscoveredDevice],
+    pub caps: &'a Caps,
+    /// The derived values as configured: the station's own figures replace them in
+    /// `run.json` once it has programmed its rate.
+    pub derived: &'a Derived,
+    pub started_unix: f64,
+    pub utc_offset_s: Option<i64>,
+    /// `None` when the streams are recorded; otherwise why not.
+    pub streams_off: Option<String>,
 }
 
 fn adoption(a: &Adoption) -> Value {
     json!({"asked": num(a.asked), "adopted": num(a.adopted), "clamped": a.clamped})
 }
 
-/// One intent as a line of `intents.jsonl`.
+/// One intent's facts, the `data` of its log entry: its place in the run (`t_s`, the
+/// generated `frame` it took effect at, the `input_frame` acquired when it was taken),
+/// the verb, and what was asked and adopted.
 pub fn intent_json(i: &IntentRecord, fs_hz: f64) -> Value {
     let mut v = json!({
         "seq": i.seq,
-        "t_s": num(super::config::round(i.input_frame as f64 / fs_hz, 6)),
+        "t_s": num(round(i.input_frame as f64 / fs_hz, 6)),
         "frame": i.frame,
         "input_frame": i.input_frame,
     });
@@ -43,13 +77,7 @@ pub fn intent_json(i: &IntentRecord, fs_hz: f64) -> Value {
             rate_oct_per_min,
         } => {
             m.insert("verb".into(), Value::from("sweep"));
-            m.insert(
-                "direction".into(),
-                Value::from(match direction {
-                    SweepDirection::Up => "up",
-                    SweepDirection::Down => "down",
-                }),
-            );
+            m.insert("direction".into(), Value::from(direction_name(*direction)));
             m.insert("rate_oct_per_min".into(), adoption(rate_oct_per_min));
         }
         IntentKind::Hold { hz } => {
@@ -64,72 +92,409 @@ pub fn intent_json(i: &IntentRecord, fs_hz: f64) -> Value {
     v
 }
 
-impl Records {
-    /// Make the run folder `name` under `root`, or the first free `name-<n>`. The
-    /// folder is claimed by creating it, so a run never shares one with another.
-    pub fn open(root: &Path, name: &str) -> Records {
-        Records {
-            folder: hertzforge_capture::claim_run_dir(root, name).ok(),
+fn direction_name(d: SweepDirection) -> &'static str {
+    match d {
+        SweepDirection::Up => "up",
+        SweepDirection::Down => "down",
+    }
+}
+
+/// An intent in the words the log shows.
+pub fn intent_words(i: &IntentRecord) -> String {
+    let n = |x: f64| crate::protocol::num(round(x, 6));
+    let clamped = |a: &Adoption, unit: &str| {
+        if a.clamped {
+            format!(" (asked {} {unit}, clamped)", n(a.asked))
+        } else {
+            String::new()
         }
-    }
-
-    pub fn folder(&self) -> Option<&Path> {
-        self.folder.as_deref()
-    }
-
-    fn write(&self, file: &str, v: &Value) {
-        if let Some(f) = &self.folder {
-            let text = serde_json::to_string_pretty(v).unwrap_or_default();
-            let _ = std::fs::write(f.join(file), text + "\n");
-        }
-    }
-
-    /// `explorer.json`: the configuration, the station, the rates and the derived values.
-    pub fn write_head(&self, config: &Value, derived: &Value, v: &ExplorerView) {
-        self.write(
-            "explorer.json",
-            &json!({
-                "run_id": v.run_id,
-                "config": config,
-                "station": v.station.to_json(),
-                "requested_fs_hz": num(v.grid.requested_fs_hz),
-                "fs_hz": num(v.grid.fs_hz),
-                "block_frames": v.grid.block_frames,
-                "lookahead_frames": v.grid.lookahead_frames,
-                "pipeline_frames": v.pipeline_frames,
-                "derived": derived,
-            }),
-        );
-    }
-
-    /// A line of `intents.jsonl`.
-    pub fn intent(&self, i: &IntentRecord, fs_hz: f64) {
-        if let Some(f) = &self.folder {
-            if let Ok(mut file) = std::fs::OpenOptions::new()
-                .create(true)
-                .append(true)
-                .open(f.join("intents.jsonl"))
-            {
-                let _ = writeln!(file, "{}", intent_json(i, fs_hz));
+    };
+    match &i.kind {
+        IntentKind::Steer { frequency, level } => {
+            let mut parts = Vec::new();
+            if let Some(f) = frequency {
+                parts.push(format!("{} Hz{}", n(f.adopted), clamped(f, "Hz")));
             }
+            if let Some(l) = level {
+                parts.push(format!("{} V pk{}", n(l.adopted), clamped(l, "V pk")));
+            }
+            format!("steer: {}", parts.join(", "))
+        }
+        IntentKind::Sweep {
+            direction,
+            rate_oct_per_min,
+        } => format!(
+            "sweep {} at {} oct/min{}",
+            direction_name(*direction),
+            n(rate_oct_per_min.adopted),
+            clamped(rate_oct_per_min, "oct/min")
+        ),
+        IntentKind::Hold { hz } => format!("hold at {} Hz", n(*hz)),
+        IntentKind::Stop { cause } => format!("stop: {}", cause.as_str()),
+    }
+}
+
+/// The manifest's `grid` from the view: the rate asked and the rate in force (the
+/// request until the station has programmed its own, `actual`), the block, the output
+/// lookahead and the pipeline, frames.
+pub fn grid_json(v: &ExplorerView) -> Value {
+    json!({
+        "requested_fs_hz": num(v.grid.requested_fs_hz),
+        "fs_hz": num(v.grid.fs_hz),
+        "block_frames": v.grid.block_frames,
+        "lookahead_frames": v.grid.lookahead_frames,
+        "pipeline_frames": v.pipeline_frames,
+        "band_hz": [num(v.band_hz.0), num(v.band_hz.1)],
+        "actual": v.grid.actual,
+    })
+}
+
+fn manifest(f: &StartFacts<'_>) -> Map<String, Value> {
+    let w = f.wire;
+    let d = f.derived;
+    let mut m = Map::new();
+    m.insert("test".into(), Value::from("explorer"));
+    m.insert("run_uid".into(), Value::from(f.run_uid));
+    m.insert("run_id".into(), Value::from(f.run_id));
+    m.insert("title".into(), Value::from(w.title.as_str()));
+    m.insert("operator".into(), Value::from(w.operator.as_str()));
+    m.insert("article".into(), Value::from(w.article.as_str()));
+    m.insert("notes".into(), Value::from(w.notes.as_str()));
+    if let Some((document, clause)) = &w.specification {
+        m.insert(
+            "specification".into(),
+            json!({"document": document, "clause": clause}),
+        );
+    }
+    m.insert(
+        "metadata".into(),
+        Value::Array(
+            w.metadata
+                .iter()
+                .map(|x| json!({"key": x.key, "label": x.label, "value": x.value}))
+                .collect(),
+        ),
+    );
+    m.insert("source".into(), Value::from(source_of(f.class)));
+    if let Some(sim) = sim_value(f.plan, f.class) {
+        m.insert("sim".into(), sim);
+    }
+    m.insert(
+        "station".into(),
+        station_member(
+            matches!(f.plan, StationPlan::Sim { .. }),
+            f.class,
+            f.provenance,
+            f.devices,
+            f.caps,
+        ),
+    );
+    m.insert(
+        "grid".into(),
+        json!({
+            "requested_fs_hz": num(w.fs()),
+            "fs_hz": num(d.fs_hz),
+            "block_frames": d.block_frames,
+            "lookahead_frames": d.lookahead_frames,
+            "pipeline_frames": d.pipeline_frames,
+            "band_hz": [num(d.band_hz.0), num(d.band_hz.1)],
+            "actual": false,
+        }),
+    );
+    m.insert("build".into(), build_value(f.provenance.core_build));
+    m.insert(
+        "armed".into(),
+        json!({"unix": f.started_unix, "utc_offset_s": f.utc_offset_s}),
+    );
+    m.insert(
+        "start".into(),
+        start_json(f.started_unix, f.utc_offset_s, 0),
+    );
+    m.insert(
+        "recording".into(),
+        match &f.streams_off {
+            None => json!({"streams": "on"}),
+            Some(why) => json!({"streams": "off", "why": why}),
+        },
+    );
+    m
+}
+
+/// Every abort in force: the drive ceiling (a generated sample over it aborts) and each
+/// enabled row's limits, which the watchdog reads on every sample and the derived
+/// motion's second reading against once settled.
+fn aborts_json(w: &WireExplorer, table: &ChannelTable) -> Value {
+    let channels: Vec<Value> = table
+        .channels
+        .iter()
+        .filter(|c| {
+            c.enabled
+                && (c.abort.accel_g.is_some()
+                    || c.abort.velocity_ips.is_some()
+                    || c.abort.displacement_mil.is_some())
+        })
+        .map(|c| {
+            json!({"channel": c.index, "accel_g": c.abort.accel_g.map(num),
+                   "velocity_ips": c.abort.velocity_ips.map(num),
+                   "displacement_mil": c.abort.displacement_mil.map(num)})
+        })
+        .collect();
+    json!({
+        "drive": {"ceiling_vpk": num(w.max_drive_vpk)},
+        "channels": channels,
+    })
+}
+
+fn setup(f: &StartFacts<'_>) -> Value {
+    let w = f.wire;
+    let table = f.table;
+    let control = WireExplorer::control_row(table);
+    let drive = WireExplorer::drive_row(table);
+    json!({
+        "config": w.raw,
+        "resolved": {
+            "acquisition": {"requested_fs_hz": num(w.fs()), "fs_hz": num(f.derived.fs_hz),
+                            "block_frames": f.derived.block_frames},
+            "band_hz": [num(w.band_hz.0), num(w.band_hz.1)],
+            "start_hz": num(w.start_hz),
+            "drive": {"channel": drive.map(|c| c.index), "unit": "V",
+                      "max_drive_vpk": num(w.max_drive_vpk), "start_vpk": 0},
+            "slew": {"freq_oct_per_s": num(w.freq_oct_per_s),
+                     "drive_db_per_s": num(w.drive_db_per_s)},
+            "ramp": {"span_db": num(AmplitudeRamp::default().ramp_span_db)},
+            "display": {"nfft": w.nfft, "window": "hann", "amplitude": "peak"},
+            "survey": {
+                "channel": control.map(|c| c.index),
+                "unit": control.map(|c| unit_name(&c.units)),
+                "window_s": num(hertzforge_explorer_host::analysis::PROFILE_WINDOW_SECONDS),
+                "level": "peak",
+            },
+            "inputs": input_rows(table).iter().map(|c| c.index).collect::<Vec<_>>(),
+            "aborts": aborts_json(w, table),
+            "capture": {"run_name": w.run_name},
+        },
+        "derived": f.derived.to_json(),
+    })
+}
+
+/// The record an Explorer run begins with, at start: before the station is opened.
+pub fn begin(f: &StartFacts<'_>, root: PathBuf, links: (TapLink, TapLink)) -> Begin {
+    let fs = f.derived.fs_hz;
+    let mut streams = Vec::new();
+    if f.streams_off.is_none() {
+        let mut inputs = Map::new();
+        inputs.insert("kind".into(), Value::from("inputs"));
+        inputs.insert("fs_hz".into(), num(fs));
+        inputs.insert(
+            "channels".into(),
+            Value::Array(
+                input_rows(f.table)
+                    .into_iter()
+                    .map(stream_channel_value)
+                    .collect(),
+            ),
+        );
+        inputs.insert("first_station_frame".into(), Value::from(0));
+        streams.push(StreamSpec {
+            name: "inputs".into(),
+            description: inputs,
+            link: links.0,
+        });
+        let drives = drive_rows(f.table);
+        if !drives.is_empty() {
+            let mut d = Map::new();
+            d.insert("kind".into(), Value::from("drives"));
+            d.insert("fs_hz".into(), num(fs));
+            d.insert(
+                "channels".into(),
+                Value::Array(drives.into_iter().map(stream_channel_value).collect()),
+            );
+            d.insert("first_station_frame".into(), Value::from(0));
+            d.insert(
+                "output_latency_frames".into(),
+                match &f.caps.output_buffer {
+                    Some(b) => json!({"frames": b.min_lookahead_frames, "how": "declared"}),
+                    None => json!({"frames": null, "how": "unknown"}),
+                },
+            );
+            streams.push(StreamSpec {
+                name: "drives".into(),
+                description: d,
+                link: links.1,
+            });
         }
     }
-
-    /// `survey.json` and `end.json`.
-    pub fn finish(&self, points: &[(f64, f64)], peak: Option<(f64, f64)>, v: &ExplorerView) {
-        self.write(
-            "survey.json",
-            &json!({
-                "channel": v.control.as_ref().map(|c| c.index),
-                "unit": v.control_unit,
-                "points": points.iter().map(|(f, l)| json!([num(*f), num(*l)])).collect::<Vec<_>>(),
-                "peak": peak.map_or(Value::Null, |(f, l)| json!({"hz": num(f), "level": num(l)})),
-            }),
-        );
-        let state = state_json(Some(v));
-        self.write(
-            "end.json",
-            &json!({"run_id": v.run_id, "end": state["end"], "state": state}),
-        );
+    Begin {
+        root,
+        name: f.wire.run_name.clone(),
+        manifest: manifest(f),
+        table: table_json(f.table, f.revision),
+        setup: setup(f),
+        law: None,
+        log: Vec::new(),
+        streams,
     }
+}
+
+fn f64s(name: &str, shape: Vec<usize>, unit: &str, values: Vec<f64>) -> ResultArray {
+    ResultArray {
+        name: name.into(),
+        shape,
+        unit: unit.into(),
+        values: ArrayValues::F64(values),
+    }
+}
+
+fn described(kind: &str, abscissa: Value, channels: Value) -> Map<String, Value> {
+    let mut m = Map::new();
+    m.insert("kind".into(), Value::from(kind));
+    m.insert("abscissa".into(), abscissa);
+    m.insert("channels".into(), channels);
+    m
+}
+
+/// The survey line at the end: the control row's amplitude at the tone, peak, at each
+/// frequency the tone visited, ascending (`kind` `survey`), its highest point and the
+/// revision it was taken at. `None` when it holds no point.
+pub fn survey_result(
+    revision: u64,
+    channel: Option<u32>,
+    unit: &str,
+    points: &[(f64, f64)],
+) -> Option<Described> {
+    let channel = channel?;
+    if points.is_empty() {
+        return None;
+    }
+    let n = points.len();
+    let mut d = described(
+        "survey",
+        json!({"kind": "frequency", "unit": "Hz", "array": "frequency"}),
+        json!({"responses": [channel]}),
+    );
+    d.insert(
+        "description".into(),
+        Value::from(
+            "the survey line: the control row's amplitude at the tone, peak, at each \
+             frequency the tone visited",
+        ),
+    );
+    let peak = points
+        .iter()
+        .copied()
+        .fold(None, |best: Option<(f64, f64)>, p| match best {
+            Some(b) if b.1 >= p.1 => Some(b),
+            _ => Some(p),
+        });
+    d.insert(
+        "peak".into(),
+        peak.map_or(
+            Value::Null,
+            |(hz, level)| json!({"hz": num(hz), "level": num(level)}),
+        ),
+    );
+    d.insert("revision".into(), Value::from(revision));
+    Some((
+        "survey".into(),
+        d,
+        vec![
+            f64s(
+                "frequency",
+                vec![n],
+                "Hz",
+                points.iter().map(|p| p.0).collect(),
+            ),
+            f64s("level", vec![n], unit, points.iter().map(|p| p.1).collect()),
+        ],
+    ))
+}
+
+/// Each acquired channel's last display window at the end: its linear amplitude
+/// spectrum, peak, from one Hann window amplitude-corrected so a tone reads its
+/// amplitude, magnitude only (`kind` `amplitude_spectrum`). `None` when no window was
+/// made.
+pub fn spectra_result(spectra: &[(u32, f64, Vec<f64>)], table: &ChannelTable) -> Option<Described> {
+    let (_, df, first) = spectra.first()?;
+    let lines = first.len();
+    if lines == 0 || spectra.iter().any(|(_, d, m)| m.len() != lines || d != df) {
+        return None;
+    }
+    let units: Vec<String> = spectra
+        .iter()
+        .map(|(ch, _, _)| {
+            table
+                .channels
+                .iter()
+                .find(|c| c.index == *ch)
+                .map_or_else(String::new, |c| unit_name(&c.units))
+        })
+        .collect();
+    let unit = match units.first() {
+        Some(u) if units.iter().all(|x| x == u) => u.clone(),
+        _ => String::new(),
+    };
+    let mut d = described(
+        "amplitude_spectrum",
+        json!({"kind": "frequency", "unit": "Hz", "start": 0.0, "step": df}),
+        json!({"responses": spectra.iter().map(|(ch, _, _)| ch).collect::<Vec<_>>()}),
+    );
+    d.insert(
+        "description".into(),
+        Value::from(
+            "each acquired channel's last display window: its amplitude spectrum, peak, \
+             from one Hann window corrected so a tone reads its amplitude; magnitude only",
+        ),
+    );
+    d.insert(
+        "units".into(),
+        Value::Array(units.into_iter().map(Value::from).collect()),
+    );
+    let values: Vec<f64> = spectra
+        .iter()
+        .flat_map(|(_, _, m)| m.iter().copied())
+        .collect();
+    Some((
+        "spectra".into(),
+        d,
+        vec![f64s("values", vec![spectra.len(), lines], &unit, values)],
+    ))
+}
+
+/// What the run measured at the end: each acquired channel's rms, the measured
+/// frequency, the control row's derived motion and the survey's peak.
+pub fn measured_json(v: &ExplorerView) -> Value {
+    json!({
+        "channels": v.channels.iter().map(|c| json!({
+            "index": c.index, "unit": c.unit, "rms": c.rms.map(num)})).collect::<Vec<_>>(),
+        "measured_hz": v.measured_hz.map(num),
+        "control": v.control.as_ref().map(|c| json!({
+            "index": c.index, "velocity_ips": c.velocity_ips.map(num),
+            "displacement_mil": c.displacement_mil.map(num), "settling": c.settling})),
+        "peak": v.peak.map(|(hz, level)| json!({"hz": num(hz), "level": num(level)})),
+    })
+}
+
+/// `end.json` as the run states it: the end, the station frames acquired, the run's
+/// state at the end and what it measured. The writer adds each stream's counts.
+pub fn end_map(
+    run_uid: &str,
+    v: &ExplorerView,
+    at_unix: f64,
+    station_frames: Option<u64>,
+) -> Map<String, Value> {
+    let mut end = Map::new();
+    end.insert("run_uid".into(), Value::from(run_uid));
+    end.insert("run_id".into(), Value::from(v.run_id.as_str()));
+    end.insert(
+        "end".into(),
+        v.end.as_ref().map_or(Value::Null, End::to_json),
+    );
+    end.insert("at_unix".into(), Value::from(at_unix));
+    end.insert(
+        "station_frames".into(),
+        station_frames.map_or(Value::Null, Value::from),
+    );
+    end.insert("measured".into(), measured_json(v));
+    end.insert("state".into(), state_json(Some(v)));
+    end
 }

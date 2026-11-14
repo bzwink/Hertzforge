@@ -70,6 +70,7 @@ impl Service {
                     bind: self.opts.bind.clone(),
                     catalog: Some(self.catalog.clone()),
                     law_factory: None,
+                    record: self.opts.record.clone(),
                 },
             )),
         }
@@ -128,6 +129,9 @@ impl Service {
             kind,
             table: Some(table_now),
             ni_devices,
+            run_id: String::new(),
+            revision: 0,
+            devices: Vec::new(),
         };
         let parsed = Arc::new(parsed);
         let mut driver = self.new_driver(&ctx);
@@ -293,6 +297,9 @@ impl Service {
                 },
                 table: Some(inner.table.table.clone()),
                 ni_devices: ni_devices(inner.stations.selected()),
+                run_id: run.id.clone(),
+                revision: inner.table.revision,
+                devices: inner.stations.devices().to_vec(),
             };
             (run, ctx)
         };

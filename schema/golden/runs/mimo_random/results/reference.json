@@ -1,0 +1,90 @@
+{
+  "name": "reference",
+  "kind": "sdm_reference",
+  "abscissa": {
+    "kind": "frequency",
+    "unit": "Hz",
+    "start": 160.0,
+    "step": 2.0
+  },
+  "channels": {
+    "responses": [
+      1,
+      2,
+      3,
+      4
+    ],
+    "references": [
+      1,
+      2,
+      3,
+      4
+    ],
+    "labels": [
+      "Control 1",
+      "Control 2",
+      "Control 3",
+      "Control 4"
+    ]
+  },
+  "band": [
+    80,
+    84
+  ],
+  "convention": "file",
+  "source": "inline, 8 points from 160 to 166 Hz, on 4 grid lines",
+  "description": "the reference spectral density matrix at full level, in the control space, and each controlled quantity's alarm and abort lines as spectral densities (NaN where there is none)",
+  "arrays": [
+    {
+      "name": "values",
+      "dtype": "c16",
+      "shape": [
+        4,
+        4,
+        4
+      ],
+      "unit": "g^2/Hz",
+      "offset": 0
+    },
+    {
+      "name": "alarm_upper",
+      "dtype": "f8",
+      "shape": [
+        4,
+        4
+      ],
+      "unit": "g^2/Hz",
+      "offset": 1024
+    },
+    {
+      "name": "alarm_lower",
+      "dtype": "f8",
+      "shape": [
+        4,
+        4
+      ],
+      "unit": "g^2/Hz",
+      "offset": 1152
+    },
+    {
+      "name": "abort_upper",
+      "dtype": "f8",
+      "shape": [
+        4,
+        4
+      ],
+      "unit": "g^2/Hz",
+      "offset": 1280
+    },
+    {
+      "name": "abort_lower",
+      "dtype": "f8",
+      "shape": [
+        4,
+        4
+      ],
+      "unit": "g^2/Hz",
+      "offset": 1408
+    }
+  ]
+}

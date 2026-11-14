@@ -1,0 +1,43 @@
+{
+  "name": "identification_drive",
+  "kind": "cpsd",
+  "abscissa": {
+    "kind": "frequency",
+    "unit": "Hz",
+    "start": 160.0,
+    "step": 2.0
+  },
+  "channels": {
+    "responses": [
+      5,
+      6,
+      7,
+      8
+    ],
+    "references": [
+      5,
+      6,
+      7,
+      8
+    ]
+  },
+  "band": [
+    80,
+    84
+  ],
+  "convention": "file",
+  "description": "the identification measured in this run: the drives' spectral matrix",
+  "arrays": [
+    {
+      "name": "values",
+      "dtype": "c16",
+      "shape": [
+        4,
+        4,
+        4
+      ],
+      "unit": "V^2/Hz",
+      "offset": 0
+    }
+  ]
+}

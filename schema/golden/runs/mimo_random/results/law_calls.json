@@ -1,0 +1,94 @@
+{
+  "name": "law_calls",
+  "kind": "mimo_law_calls",
+  "abscissa": {
+    "kind": "frequency",
+    "unit": "Hz",
+    "start": 160.0,
+    "step": 2.0
+  },
+  "channels": {
+    "responses": [
+      1,
+      2,
+      3,
+      4
+    ],
+    "labels": [
+      "Control 1",
+      "Control 2",
+      "Control 3",
+      "Control 4"
+    ]
+  },
+  "band": [
+    80,
+    84
+  ],
+  "convention": "file",
+  "description": "every call of the control law, in its own space at full level: the inputs that change from call to call and the drive it returned (NaN where it returned none, or where an input was not given); the record line says which call it was, how it ended and the law's declared values on the band",
+  "packed": {
+    "arrays": [
+      "response",
+      "last_drive",
+      "drive"
+    ],
+    "how": "each line's upper triangle, row by row: (0,0), (0,1), ..., (1,1), ..."
+  },
+  "records": {
+    "index": "seq"
+  },
+  "arrays": [
+    {
+      "name": "response",
+      "dtype": "c16",
+      "shape": [
+        10,
+        4
+      ],
+      "unit": "g^2/Hz",
+      "offset": 0
+    },
+    {
+      "name": "frf",
+      "dtype": "c16",
+      "shape": [
+        4,
+        4,
+        4
+      ],
+      "unit": "g/V",
+      "offset": 640
+    },
+    {
+      "name": "multiple_coherence",
+      "dtype": "f8",
+      "shape": [
+        4,
+        4
+      ],
+      "unit": "",
+      "offset": 1664
+    },
+    {
+      "name": "last_drive",
+      "dtype": "c16",
+      "shape": [
+        10,
+        4
+      ],
+      "unit": "V^2/Hz",
+      "offset": 1792
+    },
+    {
+      "name": "drive",
+      "dtype": "c16",
+      "shape": [
+        10,
+        4
+      ],
+      "unit": "V^2/Hz",
+      "offset": 2432
+    }
+  ]
+}

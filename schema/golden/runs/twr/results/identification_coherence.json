@@ -1,0 +1,41 @@
+{
+  "name": "identification_coherence",
+  "kind": "coherence",
+  "abscissa": {
+    "kind": "frequency",
+    "unit": "Hz",
+    "start": 24.0,
+    "step": 8.0
+  },
+  "channels": {
+    "responses": [
+      1
+    ],
+    "references": [
+      3
+    ]
+  },
+  "description": "identification: ordinary coherence, drive to control response; trusted, the lines the control trusts (1) and not (0)",
+  "arrays": [
+    {
+      "name": "values",
+      "dtype": "f8",
+      "shape": [
+        1,
+        1,
+        98
+      ],
+      "unit": "",
+      "offset": 0
+    },
+    {
+      "name": "trusted",
+      "dtype": "f8",
+      "shape": [
+        98
+      ],
+      "unit": "",
+      "offset": 784
+    }
+  ]
+}
