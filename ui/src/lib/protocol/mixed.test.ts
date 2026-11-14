@@ -41,7 +41,7 @@ function example(heading: string, after = 0): unknown {
 /** Every key of `T`, listed once: the compiler holds the list to the type both ways. */
 const keysOf = <T>(keys: Record<keyof T, true>) => Object.keys(keys).sort();
 
-const CONFIG_KEYS = keysOf<MixedConfig>({ title: true, parts: true, exclusion_hz: true, acquisition: true, schedule: true, control: true, limits: true, feasibility: true, capture: true, metadata: true });
+const CONFIG_KEYS = keysOf<MixedConfig>({ title: true, parts: true, exclusion_hz: true, acquisition: true, schedule: true, control: true, limits: true, feasibility: true, operator: true, article: true, notes: true, specification: true, record: true, metadata: true });
 const CONTROL_KEYS = keysOf<MixedControl>({
 	composite: true,
 	weights: true,
@@ -117,7 +117,8 @@ const STATE_KEYS = keysOf<MixedState>({
 	identification: true,
 	law: true,
 	feasibility: true,
-	end: true
+	end: true,
+	record: true
 });
 const ROW_KEYS = keysOf<MixedPartRow>({
 	follows: true,

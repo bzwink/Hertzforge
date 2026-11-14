@@ -23,7 +23,7 @@ mod live;
 pub(crate) mod run;
 pub mod status;
 pub(crate) mod step;
-pub use step::{ABORT_RAMP_S, TONE_ABORT_DEBOUNCE_S};
+pub use step::{ABORT_RAMP_S, TONE_ABORT_DEBOUNCE_S, TONE_MISS_NAMES};
 
 use crate::parts::{ConfigError, MixedConfig, MixedLawGuards};
 use crate::schedule::PartClock;
@@ -281,6 +281,9 @@ pub struct MixedService {
     capture_dir: Option<PathBuf>,
     law_bytes: Vec<u8>,
     summaries: Vec<status::PartSummary>,
+    /// The laws' call records kept for the host since it last took them, when
+    /// it asked for them ([`MixedService::keep_law_records`]).
+    law_kept: Option<Vec<law_records::MixedLawRecord>>,
 }
 
 impl std::fmt::Debug for MixedService {
@@ -369,6 +372,7 @@ impl MixedService {
             capture_dir: None,
             law_bytes: Vec::new(),
             summaries: Vec::new(),
+            law_kept: None,
         })
     }
 
@@ -542,6 +546,59 @@ impl MixedService {
     /// its own stop to it).
     pub fn sysid_cancel_flag(&self) -> Arc<AtomicBool> {
         self.sysid_cancel.clone()
+    }
+
+    /// The identification's complex transfer function per control channel, in
+    /// the order of the configuration's control set, on the line grid of
+    /// [`MixedService::frf`]: drive to response, the response taken
+    /// [`MixedService::sysid_lag_frames`] later, in the file's convention
+    /// (`conj(X) Y / |X|^2` with the standard transform; a delay lags). `None`
+    /// until identification has run. For a host's record; nothing in the run
+    /// reads it.
+    pub fn frf_complex(&self) -> Option<&[Vec<(f64, f64)>]> {
+        let rt = self.rt.as_ref()?;
+        (!rt.ident.h.is_empty()).then_some(rt.ident.h.as_slice())
+    }
+
+    /// The identification's ordinary coherence per control channel, on the same
+    /// grid; `None` until identification has run.
+    pub fn coherence_by_channel(&self) -> Option<&[Vec<f64>]> {
+        let rt = self.rt.as_ref()?;
+        (!rt.ident.coherence_by.is_empty()).then_some(rt.ident.coherence_by.as_slice())
+    }
+
+    /// Keep every law call record the service takes between batches for the
+    /// host to take ([`MixedService::take_law_records`]), or stop keeping them.
+    /// Off by default. The records are taken between batches as before; keeping
+    /// them is a copy there, never on the control tick, and no file is written.
+    pub fn keep_law_records(&mut self, keep: bool) {
+        self.law_kept = keep.then(Vec::new);
+    }
+
+    /// The law call records taken since the last take, in order; empty when they
+    /// are not kept.
+    pub fn take_law_records(&mut self) -> Vec<law_records::MixedLawRecord> {
+        match self.law_kept.as_mut() {
+            Some(kept) => std::mem::take(kept),
+            None => Vec::new(),
+        }
+    }
+
+    /// Each tone's tracked phase against its drive, degrees, per control channel
+    /// in the order of the control set, tones in parts-list order; empty before
+    /// the loop engages. Read between chunks; nothing in the run reads it.
+    pub fn tone_phases_deg(&self) -> Vec<Vec<f64>> {
+        let Some(rt) = self.rt.as_ref().filter(|r| r.floor_law.is_some()) else {
+            return Vec::new();
+        };
+        let channels = self.cfg.control.channels.len();
+        (0..rt.step.tones.len())
+            .map(|j| {
+                (0..channels)
+                    .map(|c| rt.step.bank.tracker(j, c).phase().to_degrees())
+                    .collect()
+            })
+            .collect()
     }
 }
 

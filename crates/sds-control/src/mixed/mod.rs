@@ -5,6 +5,7 @@
 
 pub mod config;
 pub mod law_check;
+pub mod record;
 pub mod run;
 pub mod subscribe;
 pub mod view;

@@ -2,7 +2,7 @@
 	/**
 	 * The operator's screen for Mixed Mode, on the test screen's frame: Setup in sections with its
 	 * summary beside every one (the station and channels, the floor, the tones and narrowbands, the
-	 * schedule and identification, control, limits, capture), then Run with its pages of plots and the
+	 * schedule and identification, control, limits, run record), then Run with its pages of plots and the
 	 * control dock. The header carries parts time beside the run's state and level. The review hold
 	 * after identification brings the page with the identified gain forward, once per hold.
 	 */
@@ -17,7 +17,7 @@
 	import ProfileEditor from '../ProfileEditor.svelte';
 	import StationPanel from '../StationPanel.svelte';
 	import PulseScreen from '../pulse/PulseScreen.svelte';
-	import MixedCapture from './MixedCapture.svelte';
+	import MixedRecord from './MixedRecord.svelte';
 	import { runChannels } from '../sine/sineSetup';
 	import { clock } from '../words';
 	import MixedControl from './MixedControl.svelte';
@@ -124,7 +124,7 @@
 	{:else if section === 'limits'}
 		<MixedLimits {mixed} />
 	{:else}
-		<MixedCapture sine={mixed} />
+		<MixedRecord {mixed} />
 	{/if}
 {/snippet}
 
@@ -135,7 +135,7 @@
 {#snippet station()}<StationPanel acq={mixed.acq} />{/snippet}
 
 {#snippet run()}
-	<MixedRunView {mixed} {views} {station} {abortKeys} onoverride={() => (overrideOpen = true)} onpopout={(id) => app.openDisplayWindow(id, 'mixed')} />
+	<MixedRunView {mixed} {views} {station} {abortKeys} onoverride={() => (overrideOpen = true)} onpopout={(id) => app.openDisplayWindow(id, 'mixed')} opener={app.mixedRunOpen} />
 {/snippet}
 
 <PulseScreen

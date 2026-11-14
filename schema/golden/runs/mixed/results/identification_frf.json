@@ -1,0 +1,34 @@
+{
+  "name": "identification_frf",
+  "kind": "frf",
+  "abscissa": {
+    "kind": "frequency",
+    "unit": "Hz",
+    "start": 112.0,
+    "step": 16.0
+  },
+  "channels": {
+    "responses": [
+      1
+    ],
+    "references": [
+      3
+    ]
+  },
+  "convention": "file",
+  "description": "identification: drive to each control response, the response taken 72 frames later (the lag the identification measured)",
+  "lag_frames": 72,
+  "arrays": [
+    {
+      "name": "values",
+      "dtype": "c16",
+      "shape": [
+        1,
+        1,
+        25
+      ],
+      "unit": "g/V",
+      "offset": 0
+    }
+  ]
+}

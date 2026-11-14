@@ -1,0 +1,96 @@
+{
+  "name": "floor_levels",
+  "kind": "mixed_floor_levels",
+  "abscissa": {
+    "kind": "time",
+    "unit": "s",
+    "array": "time"
+  },
+  "channels": {
+    "controls": [
+      1
+    ]
+  },
+  "description": "the background's rms over its clean lines against its reference's at the level in force, its error, its drive (rms), and its alarm, as the run went (time from engage)",
+  "parts": [
+    "floor"
+  ],
+  "records": {
+    "index": "record",
+    "points": "the points the record holds before its NaN fill"
+  },
+  "arrays": [
+    {
+      "name": "time",
+      "dtype": "f8",
+      "shape": [
+        32
+      ],
+      "unit": "s",
+      "offset": 0
+    },
+    {
+      "name": "level_db",
+      "dtype": "f8",
+      "shape": [
+        32
+      ],
+      "unit": "dB",
+      "offset": 256
+    },
+    {
+      "name": "rung",
+      "dtype": "f8",
+      "shape": [
+        32
+      ],
+      "unit": "",
+      "offset": 512
+    },
+    {
+      "name": "target",
+      "dtype": "f8",
+      "shape": [
+        32
+      ],
+      "unit": "g",
+      "offset": 768
+    },
+    {
+      "name": "measured",
+      "dtype": "f8",
+      "shape": [
+        32
+      ],
+      "unit": "g",
+      "offset": 1024
+    },
+    {
+      "name": "error_db",
+      "dtype": "f8",
+      "shape": [
+        32
+      ],
+      "unit": "dB",
+      "offset": 1280
+    },
+    {
+      "name": "drive",
+      "dtype": "f8",
+      "shape": [
+        32
+      ],
+      "unit": "V",
+      "offset": 1536
+    },
+    {
+      "name": "alarm",
+      "dtype": "f8",
+      "shape": [
+        32
+      ],
+      "unit": "",
+      "offset": 1792
+    }
+  ]
+}

@@ -190,6 +190,8 @@ pub struct MixedView {
     pub streaming: bool,
     /// The spectra the views are drawn from, as of the last publish.
     pub display: Option<Arc<MixedDisplay>>,
+    /// The run's record, once it is armed.
+    pub record: Option<crate::random::view::RecordRef>,
 }
 
 fn rows(v: &MixedView) -> Vec<Option<&PartRow>> {
@@ -389,7 +391,7 @@ fn role_json(r: &RoleState) -> Value {
     })
 }
 
-fn end_json(e: &End) -> Value {
+pub fn end_json(e: &End) -> Value {
     json!({
         "outcome": e.outcome,
         "message": e.message,
@@ -424,7 +426,7 @@ pub fn state_json(v: Option<&MixedView>) -> Value {
             "feasibility": null, "end": null,
         });
     };
-    json!({
+    let mut m = json!({
         "run_id": v.run_id,
         "state": v.state.name(),
         "phase": v.phase,
@@ -456,7 +458,11 @@ pub fn state_json(v: Option<&MixedView>) -> Value {
             json!({"verdict": verdict, "message": message})
         }),
         "end": v.end.as_ref().map_or(Value::Null, end_json),
-    })
+    });
+    if let (Some(r), Value::Object(o)) = (&v.record, &mut m) {
+        o.insert("record".into(), r.to_json());
+    }
+    m
 }
 
 /// Any part outside its alarm band.
@@ -486,7 +492,7 @@ pub fn state_key(v: Option<&MixedView>) -> String {
                 })
                 .collect();
             format!(
-                "{}|{}|{}|{}|{:?}|{}|{}|{}|{}|{}",
+                "{}|{}|{}|{}|{:?}|{}|{}|{}|{}|{}|{}",
                 v.run_id,
                 v.state.name(),
                 v.phase,
@@ -497,6 +503,7 @@ pub fn state_key(v: Option<&MixedView>) -> String {
                 limiting(v),
                 v.end.is_some(),
                 parts,
+                v.record.as_ref().map_or(Value::Null, |r| r.to_json()),
             )
         }
     }
@@ -1136,6 +1143,7 @@ pub fn configured_view(
         channels: Vec::new(),
         streaming: false,
         display: None,
+        record: None,
     }
 }
 

@@ -245,7 +245,7 @@ pub fn stream_channel_value(c: &Channel) -> Value {
     stream_channel(c)
 }
 
-fn control_json(cfg: &WireConfig) -> Value {
+pub fn control_json(cfg: &WireConfig) -> Value {
     let c = &cfg.control;
     json!({
         "composite": match c.composite {
@@ -279,7 +279,7 @@ fn control_json(cfg: &WireConfig) -> Value {
 
 /// The profile as resolved: every breakpoint an anchor in g^2/Hz, each with the
 /// alarm and abort bands that hold from it to the next.
-fn profile_json(cfg: &WireConfig) -> Value {
+pub fn profile_json(cfg: &WireConfig) -> Value {
     let anchors = cfg.breakpoints().resolve().unwrap_or_default();
     let points: Vec<Value> = cfg
         .rows
@@ -302,7 +302,7 @@ fn profile_json(cfg: &WireConfig) -> Value {
 }
 
 /// Every limit and abort in force, with its channel.
-fn limits_json(cfg: &WireConfig, table: &ChannelTable) -> (Value, Value) {
+pub fn limits_json(cfg: &WireConfig, table: &ChannelTable) -> (Value, Value) {
     let unit_of = |ch: u32| {
         table
             .channels

@@ -1,0 +1,856 @@
+{
+  "config": {
+    "title": "Golden Mixed Mode",
+    "operator": "Operator",
+    "article": "Bracket",
+    "notes": "the golden run folder",
+    "specification": {
+      "document": "Example procedure",
+      "clause": "3.4"
+    },
+    "parts": [
+      {
+        "id": "floor",
+        "kind": "floor",
+        "breakpoints": [
+          {
+            "freq_hz": 100,
+            "psd_g2_hz": 0.0005
+          },
+          {
+            "freq_hz": 500,
+            "slope_db_oct": 0
+          }
+        ],
+        "alarm_db": [
+          3,
+          3
+        ],
+        "abort_db": [
+          6,
+          6
+        ]
+      },
+      {
+        "id": "t1",
+        "name": "Blade",
+        "kind": "tone",
+        "schedule": {
+          "kind": "fixed",
+          "freq_hz": 200
+        },
+        "amplitude_g": 0.5
+      },
+      {
+        "id": "b1",
+        "name": "Mesh",
+        "kind": "narrowband",
+        "schedule": {
+          "kind": "sweep",
+          "band_hz": [
+            350,
+            420
+          ],
+          "rate": {
+            "law": "linear",
+            "hz_per_s": 20
+          }
+        },
+        "level_g2_hz": 0.002,
+        "width_hz": 32
+      }
+    ],
+    "exclusion_hz": 32,
+    "acquisition": {
+      "fs_hz": 4096,
+      "n_pts": 256,
+      "n_avg": 8,
+      "tick_ms": 100
+    },
+    "schedule": {
+      "mode": "auto",
+      "levels": [
+        {
+          "db": -6,
+          "dwell_s": 1
+        },
+        {
+          "db": 0
+        }
+      ],
+      "full_level_s": 1
+    },
+    "control": {
+      "pretest": {
+        "averages": 2
+      },
+      "floor_settle_s": 1,
+      "part_ramp_s": 0.5,
+      "level_ramp_s": 0.5,
+      "shutdown_ramp_s": 0.5,
+      "review_after_sysid": false
+    },
+    "limits": {
+      "drive_vpk_ceiling": 5,
+      "drive_vpk_abort": 8,
+      "channels": [
+        {
+          "channel": 2,
+          "kind": "response",
+          "rows": [
+            {
+              "freq_hz": 100,
+              "ceiling": 1
+            },
+            {
+              "freq_hz": 500,
+              "ceiling": 1
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "resolved": {
+    "profile": {
+      "breakpoints": [
+        {
+          "freq_hz": 100,
+          "psd_g2_hz": 0.0005,
+          "alarm_db": [
+            3,
+            3
+          ],
+          "abort_db": [
+            6,
+            6
+          ]
+        },
+        {
+          "freq_hz": 500,
+          "psd_g2_hz": 0.0005,
+          "alarm_db": [
+            3,
+            3
+          ],
+          "abort_db": [
+            6,
+            6
+          ]
+        }
+      ],
+      "alarm_db": [
+        3,
+        3
+      ],
+      "abort_db": [
+        6,
+        6
+      ],
+      "unit": "g^2/Hz"
+    },
+    "parts": [
+      {
+        "id": "floor",
+        "kind": "floor",
+        "name": "Floor",
+        "enabled": true,
+        "window": {
+          "on_s": 0,
+          "off_s": null
+        },
+        "profile": "resolved.profile"
+      },
+      {
+        "id": "t1",
+        "kind": "tone",
+        "name": "Blade",
+        "enabled": true,
+        "window": {
+          "on_s": 0,
+          "off_s": null
+        },
+        "schedule": {
+          "kind": "fixed",
+          "freq_hz": 200,
+          "end": null
+        },
+        "amplitude_g_pk": 0.5,
+        "alarm_db": [
+          1.5,
+          1.5
+        ],
+        "abort_db": [
+          3,
+          3
+        ]
+      },
+      {
+        "id": "b1",
+        "kind": "narrowband",
+        "name": "Mesh",
+        "enabled": true,
+        "window": {
+          "on_s": 0,
+          "off_s": null
+        },
+        "schedule": {
+          "kind": "sweep",
+          "band_hz": [
+            350,
+            420
+          ],
+          "rate": {
+            "law": "linear",
+            "hz_per_s": 20
+          },
+          "start_hz": null,
+          "direction": "up",
+          "sweeps": null,
+          "duration_s": null
+        },
+        "level_g2_hz": 0.002,
+        "width_hz": 32,
+        "alarm_db": null,
+        "abort_db": null
+      }
+    ],
+    "schedule": {
+      "mode": "auto",
+      "levels": [
+        {
+          "db": -6,
+          "dwell_s": 1
+        },
+        {
+          "db": 0,
+          "dwell_s": 1
+        }
+      ],
+      "full_level_s": 1
+    },
+    "tolerances": {
+      "alarm_db": [
+        3,
+        3
+      ],
+      "abort_db": [
+        6,
+        6
+      ]
+    },
+    "limits": [
+      {
+        "channel": 2,
+        "kind": "response",
+        "unit": "g^2/Hz",
+        "rows": [
+          {
+            "freq_hz": 100,
+            "ceiling": 1
+          },
+          {
+            "freq_hz": 500,
+            "ceiling": 1
+          }
+        ]
+      }
+    ],
+    "aborts": {
+      "envelope": {
+        "abort_db": [
+          6,
+          6
+        ],
+        "max_lines_out": 10
+      },
+      "divergence": {
+        "max_loops_out": 5
+      },
+      "drive": {
+        "abort_vrms": null,
+        "ceiling_vrms": 10,
+        "max_sigma": 5
+      },
+      "channels": [],
+      "peak_drive": {
+        "ceiling_vpk": 5,
+        "abort_vpk": 8
+      },
+      "kinematic_monitor": true,
+      "tones": {
+        "divergence_s": 1,
+        "fault_debounce_ticks": 50
+      }
+    },
+    "control": {
+      "composite": "weighted_avg",
+      "weights": [],
+      "control_dof": 120,
+      "damping": 4,
+      "max_lines_out": 10,
+      "max_loops_out": 5,
+      "max_sigma": 5,
+      "drive_ceiling_vrms": 10,
+      "drive_abort_vrms": null,
+      "coherence_floor": 0.5,
+      "review_after_sysid": false,
+      "pretest": {
+        "averages": 2,
+        "level_db": -20,
+        "max_vrms": 1,
+        "start_vrms": 0.01,
+        "shaped": false
+      },
+      "soft_start_db": 9,
+      "soft_start_relax_db": 6,
+      "level_ramp_s": 0.5,
+      "shutdown_ramp_s": 0.5,
+      "part_ramp_s": 0.5,
+      "floor_settle_s": 1,
+      "exclusion_hz": 32,
+      "trust_coherence": 0.5,
+      "trust_h_floor_frac": 0.05,
+      "tracking": {
+        "kind": "fixed",
+        "hz": 0.5
+      },
+      "law_guards": {
+        "floor": {
+          "law_budget": 0.25,
+          "law_misses": 3,
+          "max_change_db": 6
+        },
+        "tones": {
+          "law_budget": 0.25,
+          "law_misses": 3,
+          "max_step_db": 1,
+          "max_rise_db_per_s": 240,
+          "divergence_s": 1,
+          "fault_debounce_ticks": 50
+        }
+      }
+    },
+    "control_channels": [
+      1
+    ],
+    "acquisition": {
+      "requested_fs_hz": 4096,
+      "fs_hz": 4096,
+      "n_pts": 256,
+      "n_avg": 8,
+      "tick_ms": 100,
+      "tick_frames": 410
+    },
+    "controller": {
+      "df_hz": 16.0,
+      "lines": 26,
+      "nfft": 256,
+      "blocks_per_window": 8,
+      "control_dof": 120.0,
+      "control": {
+        "channels": [
+          {
+            "channel_index": 1,
+            "weight": 1.0
+          }
+        ],
+        "mode": "WeightedAvg"
+      },
+      "parts": [
+        {
+          "id": "floor",
+          "name": "",
+          "enabled": true,
+          "window": {
+            "on_s": 0.0
+          },
+          "body": {
+            "kind": "floor",
+            "breakpoints": {
+              "label": "Golden Mixed Mode",
+              "rows": [
+                {
+                  "freq_hz": 100.0,
+                  "level": {
+                    "Psd": 0.0005
+                  },
+                  "alarm_db": [
+                    3.0,
+                    3.0
+                  ],
+                  "abort_db": [
+                    6.0,
+                    6.0
+                  ]
+                },
+                {
+                  "freq_hz": 500.0,
+                  "level": {
+                    "SlopeDbPerOct": 0.0
+                  },
+                  "alarm_db": [
+                    3.0,
+                    3.0
+                  ],
+                  "abort_db": [
+                    6.0,
+                    6.0
+                  ]
+                }
+              ]
+            },
+            "alarm_db": [
+              3.0,
+              3.0
+            ],
+            "abort_db": [
+              6.0,
+              6.0
+            ]
+          }
+        },
+        {
+          "id": "t1",
+          "name": "Blade",
+          "enabled": true,
+          "window": {
+            "on_s": 0.0
+          },
+          "body": {
+            "kind": "tone",
+            "schedule": {
+              "kind": "fixed",
+              "hz": 200.0
+            },
+            "amplitude": {
+              "kind": "constant",
+              "g_pk": 0.5
+            },
+            "alarm_db": [
+              1.5,
+              1.5
+            ],
+            "abort_db": [
+              3.0,
+              3.0
+            ]
+          }
+        },
+        {
+          "id": "b1",
+          "name": "Mesh",
+          "enabled": true,
+          "window": {
+            "on_s": 0.0
+          },
+          "body": {
+            "kind": "narrowband",
+            "schedule": {
+              "kind": "sweep",
+              "lo_hz": 350.0,
+              "hi_hz": 420.0,
+              "start_hz": 350.0,
+              "direction": "up",
+              "law": "linear_hz_per_s",
+              "rate": 20.0,
+              "target": {
+                "kind": "duration",
+                "s": null
+              }
+            },
+            "level_g2_hz": 0.002,
+            "width": {
+              "kind": "hz",
+              "hz": 32.0
+            },
+            "alarm_db": [
+              3.0,
+              3.0
+            ],
+            "abort_db": [
+              6.0,
+              6.0
+            ]
+          }
+        }
+      ],
+      "exclusion_hz": 32.0,
+      "tracking_hz": 0.5,
+      "schedule": {
+        "mode": "Auto",
+        "start_db": -6.0,
+        "table_db": [
+          -6.0,
+          0.0
+        ],
+        "dwell_s": [
+          1.0,
+          0.0
+        ]
+      },
+      "full_level_duration_s": 1.0,
+      "level_ramp_s": 0.5,
+      "shutdown_ramp_s": 0.5,
+      "part_ramp_s": 0.5,
+      "floor_settle_s": 1.0,
+      "soft_start_db": 9.0,
+      "soft_start_relax_db": 6.0,
+      "moving_mass": {
+        "armature_lb": 0.0,
+        "slip_table_lb": 0.0,
+        "drive_adapter_lb": 0.0,
+        "fixturing_lb": 0.0,
+        "test_article_lb": 0.0
+      },
+      "crest_factor": 3.0,
+      "identification": {
+        "sysid_level_db": -20.0,
+        "coherence_floor": 0.5,
+        "pretest_max_vrms": 1.0,
+        "shaped_pretest": false,
+        "pretest_reference_db": -20.0,
+        "pretest_start_vrms": 0.01,
+        "review_hold": false,
+        "trust_coherence": 0.5,
+        "trust_h_floor_frac": 0.05
+      },
+      "limits": {
+        "drive_vpk_ceiling": 5.0,
+        "drive_vpk_abort": 8.0,
+        "drive_ceiling_vrms": 10.0,
+        "kinematic_monitor": true,
+        "drive_clip_sigma": 5.0,
+        "limit_profiles": [
+          {
+            "channel_index": 2,
+            "kind": "Response",
+            "resp_ceiling": [
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              1.0,
+              1.0,
+              1.0,
+              1.0,
+              1.0,
+              1.0,
+              1.0,
+              1.0,
+              1.0,
+              1.0,
+              1.0,
+              1.0,
+              1.0,
+              1.0,
+              1.0,
+              1.0,
+              1.0,
+              1.0,
+              1.0,
+              1.0,
+              1.0,
+              1.0,
+              1.0,
+              1.0,
+              1.0,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null
+            ]
+          }
+        ],
+        "max_lines_out": 10,
+        "divergence_loops": 5,
+        "overload_fraction": 0.9
+      },
+      "capture": {
+        "trigger": "Off",
+        "level_settle_s": 2.0,
+        "periodic_save_s": null
+      },
+      "law": {
+        "floor": {
+          "id": "hinv"
+        },
+        "tones": {
+          "id": "servo_blend"
+        }
+      },
+      "law_guards": {
+        "floor": {
+          "max_change_db": 6.0,
+          "budget_fraction": 0.25,
+          "max_misses": 3
+        },
+        "tones": {
+          "max_step_db": 1.0,
+          "max_rise_db_per_s": 240.0,
+          "budget_fraction": 0.25,
+          "max_misses": 3,
+          "divergence_s": 1.0
+        }
+      },
+      "control_tick_s": 0.1,
+      "metadata": [
+        {
+          "key": "run_number",
+          "label": "Run Number",
+          "value": ""
+        },
+        {
+          "key": "test_article",
+          "label": "Test Article",
+          "value": ""
+        },
+        {
+          "key": "serial_number",
+          "label": "SN",
+          "value": ""
+        },
+        {
+          "key": "operator",
+          "label": "Operator",
+          "value": ""
+        }
+      ]
+    }
+  },
+  "derived": {
+    "band_hz": [
+      100,
+      500
+    ],
+    "grid": {
+      "fs_hz": 4096,
+      "df_hz": 16,
+      "tick_frames": 410,
+      "tick_s": 0.10009765625,
+      "actual": true
+    },
+    "control_channels": [
+      1
+    ],
+    "parts": [
+      {
+        "id": "floor",
+        "kind": "floor",
+        "name": "Floor",
+        "freq_hz": null,
+        "width_hz": null,
+        "ms_g2": 0.2,
+        "peak_g": null
+      },
+      {
+        "id": "t1",
+        "kind": "tone",
+        "name": "Blade",
+        "freq_hz": [
+          200,
+          200
+        ],
+        "width_hz": null,
+        "ms_g2": 0.125,
+        "peak_g": 0.5
+      },
+      {
+        "id": "b1",
+        "kind": "narrowband",
+        "name": "Mesh",
+        "freq_hz": [
+          350,
+          420
+        ],
+        "width_hz": [
+          32,
+          32
+        ],
+        "ms_g2": 0.064,
+        "peak_g": null
+      }
+    ],
+    "reference": {
+      "floor_ms_g2": 0.2,
+      "tones_ms_g2": 0.125,
+      "bands_ms_g2": 0.064,
+      "total_ms_g2": 0.389,
+      "total_rms_g": 0.6237,
+      "random_rms_g": 0.5138
+    },
+    "kinematics": {
+      "peak_accel_g": 2.041,
+      "peak_velocity_ips": 0.5456,
+      "peak_disp_pp_in": 0.001009,
+      "verdict": "not_evaluated",
+      "message": "No shaker was given, so the test was not checked against shaker ratings."
+    },
+    "exclusion": [
+      {
+        "part": "t1",
+        "lo_hz": 168,
+        "hi_hz": 232,
+        "lines": 4
+      }
+    ],
+    "closest_tones": null,
+    "tracking": [
+      {
+        "part": "t1",
+        "verdict": "ok",
+        "ratio": 0,
+        "at_hz": null,
+        "message": null
+      }
+    ],
+    "test_s": 2,
+    "floor_equalize_s": 2.3,
+    "tone_judging": [
+      {
+        "part": "t1",
+        "judge_s": 2,
+        "sigma_db": 0.27,
+        "alarm_db": [
+          1.5,
+          1.5
+        ],
+        "abort_db": [
+          3,
+          3
+        ],
+        "widened": false
+      }
+    ],
+    "identification_s": 1,
+    "call_budget_s": {
+      "floor": 0.125,
+      "tones": 0.0250244
+    },
+    "law": {
+      "floor": {
+        "id": "hinv",
+        "name": "H-inverse",
+        "version": "0.1.9",
+        "sha256": null,
+        "live": [],
+        "hardware": true
+      },
+      "tones": {
+        "id": "servo_blend",
+        "name": "Servo blend",
+        "version": "0.1.0",
+        "sha256": null,
+        "live": [
+          "blend_w"
+        ],
+        "hardware": true
+      }
+    },
+    "feasibility": {
+      "verdict": "not_evaluated",
+      "message": "No shaker was given, so the test was not checked against shaker ratings."
+    }
+  },
+  "feasibility": {
+    "inputs": null,
+    "verdict": "not_evaluated",
+    "message": "No shaker was given, so the test was not checked against shaker ratings."
+  }
+}

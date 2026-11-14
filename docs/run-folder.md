@@ -5,9 +5,9 @@ control service while the run goes, that needs no other file and no running
 service to be read. The analysis side converts it into an ordinary project file
 (`hertzforge convert-run FOLDER`, or open the folder or its `run.json`), so a
 finished run reaches every analysis tool with its channel table, its setup, its
-log and its measurements. Today the Random, MIMO Random, Sine, Classical Shock,
-SRS shock and TWR modules, Explorer and the Recorder write one for every run; the
-other control modules do not yet.
+log and its measurements. Today the Random, MIMO Random, Sine, Mixed Mode,
+Classical Shock, SRS shock and TWR modules, Explorer and the Recorder write one
+for every run; MIMO Shock does not yet.
 
 The exact form is the reader's, `hertzforge.io.run_folder`; the conversion is
 `hertzforge.io.run_convert`, described in `docs/hforge-format.md` ("Run Folders
@@ -20,14 +20,15 @@ Under the service's data folder: the folder `HERTZFORGE_DATA_ROOT` names, or
 `Hertzforge_Data` in the home folder. A Random run's folder is named
 `<YYYYMMDD-HHMMSS>_random_<run id>`, a MIMO Random run's
 `<YYYYMMDD-HHMMSS>_mimo_random_<run id>`, a Sine run's
-`<YYYYMMDD-HHMMSS>_sine_<run id>`, a Classical Shock run's
+`<YYYYMMDD-HHMMSS>_sine_<run id>`, a Mixed Mode run's
+`<YYYYMMDD-HHMMSS>_mixed_<run id>`, a Classical Shock run's
 `<YYYYMMDD-HHMMSS>_classical_shock_<run id>`, an SRS shock run's
 `<YYYYMMDD-HHMMSS>_srs_<run id>` and a TWR run's
 `<YYYYMMDD-HHMMSS>_twr_<run id>`, the time it armed in UTC. A Recorder run's
 folder, and an Explorer run's, is the plain name its setup gives
 (`capture.run_name`). The run's state names the folder from arm on
-(`random.state`, `mimo_random.status`, `sine.state`, `shock.state`, `srs.state`,
-`twr.state`, `explorer.state` and `recorder.state`, `record.folder`).
+(`random.state`, `mimo_random.status`, `sine.state`, `mixed.state`, `shock.state`,
+`srs.state`, `twr.state`, `explorer.state` and `recorder.state`, `record.folder`).
 
 ## Layout
 
@@ -441,6 +442,62 @@ times, build fields and each law call's measured duration normalized, and its
 streams cut to their first 1024 frames (`cut_from_frames`): the identification's
 burst alone is 131 072 frames;
 `scripts/make_golden_runs.sh` rewrites it.
+
+## What a Mixed Mode Run Saves
+
+From arm: `run.json`, `table.json`, `setup.json` (with `resolved.profile`, the
+floor's breakpoints as anchors in g²/Hz with the alarm and abort bands that hold
+from each; `resolved.parts`, every part with its window, its sweep, dwell or
+follow, its level (a tone's amplitude or profile, a narrowband's density and
+width) and its bands; the level schedule, the limits and aborts with the summed
+drive's ceiling and abort, the control settings with both laws' guards, and
+`resolved.controller`, the controller's own configuration), `law/law.json` (both
+roles' laws, their parameters and their guards) and `log.jsonl`, and these files,
+each checked against the golden run folder (`schema/golden/runs/mixed/`) by
+`tests/test_run_folder_golden_mixed.py`:
+
+| File | What |
+|---|---|
+| `streams/inputs` | Every enabled input as read from the station, in table order, from the identification on (`kind` `inputs`) |
+| `streams/drives` | The drive as the device accepted it, in volts (`kind` `drives`) |
+| `results/reference` | The floor's reference and its alarm and abort bands at 0 dB on the run's lines (`kind` `envelope`) |
+| `results/identification_frf` | The identification's complex transfer function, drive to each control response, on the floor's band, the response taken the lag it measured later (`kind` `frf`) |
+| `results/identification_coherence` | Its ordinary coherence per control channel, the composite the gate judged and the lines the control trusts (`kind` `coherence`) |
+| `results/control_psd` | Each control channel's spectrum with the tones in, the composite, and the reference at the level in force with its alarm and abort lines (`kind` `psd`, one record per keeping) |
+| `results/residual_psd` | Each control channel's spectrum with each tracked tone taken out, the composite, and the lines left out of the floor's average (`kind` `psd`, one record per keeping) |
+| `results/drive_psd` | The random part of the drive (`kind` `psd`, one record per keeping) |
+| `results/tone_levels` | Each tone's frequency, target, tracked level, error, drive and tracked phase against its drive per control channel, and whether it plays, as the run went (`kind` `mixed_tone_levels`, records of 32 points) |
+| `results/band_levels` | Each narrowband's center, width, reference, measured level, error, degrees of freedom, drive and whether it plays, as the run went (`kind` `mixed_band_levels`, records of 32 points) |
+| `results/floor_levels` | The floor's rms over its clean lines against its reference's, its error, its drive and its alarm, as the run went (`kind` `mixed_floor_levels`, records of 32 points) |
+| `results/control_trace` | Every call of both laws, in the order the controller took them: time from engage, the law, the tone, the drive in force and the drive taken, the call's time, a miss and its flags (`kind` `mixed_control`, records of 64 calls) |
+| `end.json` | The end, as the run's state reports it |
+
+The spectra are kept from the last chunk before each level change and from the
+last chunk of the run that had the floor's loop; each record's line says which
+(`why`), the level in force and the station frame. The parts' levels are one
+point a chunk (about a quarter second of station time) from engage. The laws'
+calls are taken from the controller between chunks and written by the record's
+writer; nothing writes them on the loop's thread. A run with a limit adds
+`results/limit_ch<n>`, its ceiling on the lines it covers (`kind` `limit`). A
+test with no tone has no `tone_levels`, one with no narrowband no `band_levels`.
+With `record.streams` false there is no `streams/` folder. A run that ends before
+its identification has no identification; one that ends before the loop engages
+has no spectra, levels or trace.
+
+On the analysis side the floor becomes a `Specification`, carrying each
+narrowband as a `Narrowband` and the width the service leaves out around each
+tone (`tone_exclusion`), and the tones of a constant amplitude, fixed or swept
+one pass in the direction the run started, a `SineSweepSpecification` named
+`Tones`; `MixedSpecification(floor, tones)` puts them together. A tone that
+follows another or whose amplitude is a profile has no analysis class: it stays
+in the setup, and the conversion says so. The spectra become `Psd`s, the
+identification an `Frf` and a `Coherence`; the parts' levels, the trace, the
+reference and the limit lines stay in the run record as named arrays.
+
+The golden folder is written by `cargo test -p sds-control --test
+mixed_golden_run` from a short run on the simulator on a coarse grid, with fixed
+seeds, its wall times, build fields and each law call's measured duration
+normalized, and its streams cut to their first 256 frames (`cut_from_frames`);
 
 ## What a MIMO Random Run Saves
 

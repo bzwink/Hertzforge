@@ -1,0 +1,141 @@
+{
+  "name": "band_levels",
+  "kind": "mixed_band_levels",
+  "abscissa": {
+    "kind": "time",
+    "unit": "s",
+    "array": "time"
+  },
+  "channels": {
+    "controls": [
+      1
+    ]
+  },
+  "description": "each narrowband's center, its width, its reference at the level in force (the background and the band), its measured level (the residual's mean over the band), its error, the degrees of freedom of the reading, its share of the drive (rms), and whether it plays, as the run went (time from engage)",
+  "parts": [
+    "b1"
+  ],
+  "records": {
+    "index": "record",
+    "points": "the points the record holds before its NaN fill"
+  },
+  "arrays": [
+    {
+      "name": "time",
+      "dtype": "f8",
+      "shape": [
+        32
+      ],
+      "unit": "s",
+      "offset": 0
+    },
+    {
+      "name": "level_db",
+      "dtype": "f8",
+      "shape": [
+        32
+      ],
+      "unit": "dB",
+      "offset": 256
+    },
+    {
+      "name": "rung",
+      "dtype": "f8",
+      "shape": [
+        32
+      ],
+      "unit": "",
+      "offset": 512
+    },
+    {
+      "name": "frequency",
+      "dtype": "f8",
+      "shape": [
+        1,
+        32
+      ],
+      "unit": "Hz",
+      "offset": 768
+    },
+    {
+      "name": "width",
+      "dtype": "f8",
+      "shape": [
+        1,
+        32
+      ],
+      "unit": "Hz",
+      "offset": 1024
+    },
+    {
+      "name": "target",
+      "dtype": "f8",
+      "shape": [
+        1,
+        32
+      ],
+      "unit": "g^2/Hz",
+      "offset": 1280
+    },
+    {
+      "name": "measured",
+      "dtype": "f8",
+      "shape": [
+        1,
+        32
+      ],
+      "unit": "g^2/Hz",
+      "offset": 1536
+    },
+    {
+      "name": "error_db",
+      "dtype": "f8",
+      "shape": [
+        1,
+        32
+      ],
+      "unit": "dB",
+      "offset": 1792
+    },
+    {
+      "name": "dof",
+      "dtype": "f8",
+      "shape": [
+        1,
+        32
+      ],
+      "unit": "",
+      "offset": 2048
+    },
+    {
+      "name": "drive",
+      "dtype": "f8",
+      "shape": [
+        1,
+        32
+      ],
+      "unit": "V",
+      "offset": 2304
+    },
+    {
+      "name": "on",
+      "dtype": "f8",
+      "shape": [
+        1,
+        32
+      ],
+      "unit": "",
+      "offset": 2560
+    },
+    {
+      "name": "alarm",
+      "dtype": "f8",
+      "shape": [
+        1,
+        32
+      ],
+      "unit": "",
+      "offset": 2816
+    }
+  ]
+}

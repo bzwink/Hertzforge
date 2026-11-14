@@ -1,0 +1,41 @@
+{
+  "id": "hinv+servo_blend",
+  "name": "Mixed Mode",
+  "builtin": true,
+  "floor": {
+    "id": "hinv",
+    "name": "H-inverse",
+    "version": "0.1.9",
+    "sha256": null,
+    "live": [],
+    "hardware": true
+  },
+  "tones": {
+    "id": "servo_blend",
+    "name": "Servo blend",
+    "version": "0.1.0",
+    "sha256": null,
+    "live": [
+      "blend_w"
+    ],
+    "hardware": true
+  },
+  "params": {
+    "floor": {},
+    "tones": {}
+  },
+  "guards": {
+    "floor": {
+      "max_change_db": 6.0,
+      "budget_fraction": 0.25,
+      "max_misses": 3
+    },
+    "tones": {
+      "max_step_db": 1.0,
+      "max_rise_db_per_s": 240.0,
+      "budget_fraction": 0.25,
+      "max_misses": 3,
+      "divergence_s": 1.0
+    }
+  }
+}

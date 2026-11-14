@@ -154,7 +154,10 @@ describe("the mock's frames, in the service's form", () => {
 		const config = (readJson('request_mixed_configure.json') as Request<MixedConfigureParams>).params.config;
 		await client.request('mixed.configure', { config: { ...config, limits: { ...config.limits, channels: [] } } });
 		const state = await client.request<MixedState>('mixed.state');
-		const want = Object.keys((readJson('event_mixed_state.json') as { data: MixedState }).data).sort();
+		// a configured run has no record yet: it is named at arm
+		const want = Object.keys((readJson('event_mixed_state.json') as { data: MixedState }).data)
+			.filter((k) => k !== 'record')
+			.sort();
 		expect(Object.keys(state).sort()).toEqual(want);
 		const live = (readJson('event_mixed_live.expected.json') as { data: MixedLive }).data;
 		const part = live.parts[0];

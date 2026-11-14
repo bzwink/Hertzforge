@@ -78,7 +78,11 @@ fn held(w: &WireMixed) -> Value {
         "damping": w.random.control.damping,
         "averages": w.random.control.pretest_averages,
         "fault_debounce_ticks": w.guards_tones.fault_debounce_ticks,
-        "run_name": w.capture.run_name,
+        "operator": w.operator,
+        "article": w.article,
+        "notes": w.notes,
+        "specification": w.specification,
+        "record_streams": w.record_streams,
         "profile_label": label,
     })
 }
@@ -183,10 +187,12 @@ fn mutations() -> Vec<(&'static str, Value)> {
         ),
         ("feasibility.crest_factor", json!(3.5)),
         ("feasibility.moving_mass_lb.fixturing", json!(12)),
-        ("capture.rule", json!("entire_test")),
-        ("capture.level_settle_s", json!(2)),
-        ("capture.periodic_save_s", json!(30)),
-        ("capture.run_name", json!("mixed-b")),
+        ("operator", json!("B. Operator")),
+        ("article", json!("Rotor housing, serial 5")),
+        ("notes", json!("second article")),
+        ("specification.document", json!("Test procedure 13")),
+        ("specification.clause", json!("4.4")),
+        ("record.streams", json!(false)),
         ("metadata[0].value", json!("8")),
     ]
 }

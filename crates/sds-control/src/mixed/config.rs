@@ -30,7 +30,7 @@ use hertzforge_mixed::{
     PartSweepTarget, PartWindow, SweepLaw, ToneAmplitude, TonePart, MAX_BANDS, MAX_TONES,
     MIN_TONE_SPACING_WIDTHS,
 };
-use hertzforge_random::service::config::{CaptureRules, CaptureTrigger, MetaField};
+use hertzforge_random::service::config::{CaptureRules, MetaField};
 use hertzforge_sine::law::{MAX_STEP_DB_RANGE, MIN_TICK_S_BUILTIN, MIN_TICK_S_LAW_FILE};
 use hertzforge_sine::profile::SineProfile;
 use hertzforge_sine::service::config::{assess_tracking_lag, TrackingLagVerdict};
@@ -203,28 +203,6 @@ impl Default for FloorGuards {
     }
 }
 
-/// The capture settings as sent (Sine's form).
-#[derive(Debug, Clone, PartialEq)]
-pub struct WireCapture {
-    pub rule: &'static str,
-    pub first_s: Option<f64>,
-    pub level_settle_s: f64,
-    pub periodic_save_s: Option<f64>,
-    pub run_name: String,
-}
-
-impl Default for WireCapture {
-    fn default() -> Self {
-        WireCapture {
-            rule: "off",
-            first_s: None,
-            level_settle_s: CaptureRules::default().level_settle_s,
-            periodic_save_s: None,
-            run_name: "mixed".into(),
-        }
-    }
-}
-
 /// A parsed Mixed Mode configuration, every default filled in.
 #[derive(Debug, Clone, PartialEq)]
 pub struct WireMixed {
@@ -249,7 +227,14 @@ pub struct WireMixed {
     pub drive_vpk_ceiling: f64,
     pub drive_vpk_abort: f64,
     pub kinematic_monitor: bool,
-    pub capture: WireCapture,
+    /// The operator's words for the run's record: who ran it, on what, and notes.
+    pub operator: String,
+    pub article: String,
+    pub notes: String,
+    /// The test document and clause the run is made to, when given.
+    pub specification: Option<(String, String)>,
+    /// Whether the run's record keeps its streams (`record.streams`).
+    pub record_streams: bool,
     pub metadata: Vec<MetaField>,
     /// The configuration as sent, for `mixed.config` and `mixed.reset`.
     pub raw: Value,
@@ -278,12 +263,6 @@ fn db_band(o: &Obj<'_>, k: &str) -> Result<Option<(f64, f64)>, MethodError> {
 }
 
 const DIRECTIONS: [(&str, Direction); 2] = [("up", Direction::Up), ("down", Direction::Down)];
-const CAPTURE_RULES: [(&str, &str); 4] = [
-    ("off", "off"),
-    ("entire_test", "entire_test"),
-    ("manual", "manual"),
-    ("first_seconds", "first_seconds"),
-];
 
 fn parse_rate(o: &Obj<'_>, k: &str) -> Result<SweepRate, MethodError> {
     let r = o.obj(k)?;
@@ -561,7 +540,11 @@ pub fn parse(config: &Value) -> Result<WireMixed, MethodError> {
         drive_vpk_ceiling: 0.0,
         drive_vpk_abort: 0.0,
         kinematic_monitor: true,
-        capture: WireCapture::default(),
+        operator: String::new(),
+        article: String::new(),
+        notes: String::new(),
+        specification: None,
+        record_streams: true,
         metadata: Vec::new(),
         raw: config.clone(),
     };
@@ -630,16 +613,35 @@ pub fn parse(config: &Value) -> Result<WireMixed, MethodError> {
     w.drive_vpk_abort = lim.f64("drive_vpk_abort")?;
     w.kinematic_monitor = lim.opt_bool("kinematic_monitor")?.unwrap_or(true);
 
-    if let Some(o) = c.opt_obj("capture")? {
-        let d = WireCapture::default();
-        w.capture = WireCapture {
-            rule: o.choice("rule", &CAPTURE_RULES, Some("off"))?,
-            first_s: o.opt_f64("first_s")?,
-            level_settle_s: o.f64_or("level_settle_s", d.level_settle_s)?,
-            periodic_save_s: o.opt_f64("periodic_save_s")?,
-            run_name: o.opt_str("run_name")?.unwrap_or("mixed").to_owned(),
-        };
+    // The module's own capture is gone: every run is recorded in its run folder,
+    // written as the run goes, so there is nothing for a periodic save to do.
+    if !matches!(c.m.get("capture"), None | Some(Value::Null)) {
+        return Err(bad(
+            "config.capture",
+            "Mixed Mode takes no \"capture\": every run is recorded in its run folder as it \
+             goes, and \"record.streams\" says whether the record keeps its time histories."
+                .to_owned(),
+        ));
     }
+    let words =
+        |k: &str| -> Result<String, MethodError> { Ok(c.opt_str(k)?.unwrap_or("").to_owned()) };
+    (w.operator, w.article, w.notes) = (words("operator")?, words("article")?, words("notes")?);
+    w.specification = match c.m.get("specification") {
+        None | Some(Value::Null) => None,
+        Some(v) => {
+            let o = Obj::of(v, "config.specification")?;
+            Some((
+                o.opt_str("document")?.unwrap_or("").to_owned(),
+                o.opt_str("clause")?.unwrap_or("").to_owned(),
+            ))
+        }
+    };
+    w.record_streams = match c.m.get("record") {
+        None | Some(Value::Null) => true,
+        Some(v) => Obj::of(v, "config.record")?
+            .opt_bool("streams")?
+            .unwrap_or(true),
+    };
 
     w.metadata = match c.array("metadata")? {
         None => MetaField::defaults(),
@@ -1307,42 +1309,6 @@ impl WireMixed {
             self.drive_vpk_abort <= MAX_DRIVE_VPK,
             "it is at most 10 V",
         );
-        let c = &self.capture;
-        if matches!(c.rule, "manual" | "first_seconds") {
-            r.errors.push(Item::field(
-                "out_of_range",
-                "capture.rule",
-                format!(
-                    "Recording \"{}\" is not offered: the service records the entire test \
-                     (\"entire_test\") or nothing (\"off\").",
-                    c.rule
-                ),
-            ));
-        }
-        range(
-            r,
-            "capture.level_settle_s",
-            c.level_settle_s,
-            c.level_settle_s >= 0.0,
-            "it is 0 or more",
-        );
-        if let Some(p) = c.periodic_save_s {
-            range(r, "capture.periodic_save_s", p, p > 0.0, "it is above 0");
-        }
-        let plain = !c.run_name.is_empty()
-            && !c.run_name.contains(['/', '\\', ':'])
-            && c.run_name != "."
-            && c.run_name != "..";
-        if !plain {
-            r.errors.push(Item::field(
-                "out_of_range",
-                "capture.run_name",
-                format!(
-                    "The run folder's name is \"{}\"; it is a plain folder name, with no path in it.",
-                    c.run_name
-                ),
-            ));
-        }
     }
 
     fn check_law(
@@ -1828,8 +1794,8 @@ impl WireMixed {
     /// which the station settles; the floor law's damping, which reaches the core
     /// through the floor law's settings; the identification's averages, which the
     /// run thread passes to the identification; the tones' fault debounce; a tone
-    /// profile's label; the capture's run name, which the run passes to
-    /// `start_capture`).
+    /// profile's label; the operator's words and the record's settings, which
+    /// the run's record keeps).
     pub fn to_core(&self, table: &ChannelTable) -> Result<MixedConfig, ConfigError> {
         let built = self
             .random
@@ -1892,18 +1858,7 @@ impl WireMixed {
                 divergence_loops: t.divergence_loops,
                 overload_fraction: t.overload_fraction,
             },
-            capture: CaptureRules {
-                trigger: match self.capture.rule {
-                    "entire_test" => CaptureTrigger::EntireTest,
-                    "manual" => CaptureTrigger::Manual,
-                    "first_seconds" => CaptureTrigger::AutoFirstSeconds {
-                        n_s: self.capture.first_s.unwrap_or(0.0),
-                    },
-                    _ => CaptureTrigger::Off,
-                },
-                level_settle_s: self.capture.level_settle_s,
-                periodic_save_s: self.capture.periodic_save_s,
-            },
+            capture: CaptureRules::default(),
             law: MixedLawChoice {
                 floor: LawPick {
                     id: self.law_floor.id.clone(),
@@ -2394,21 +2349,13 @@ pub fn to_wire(core: &MixedConfig, extras: &WireMixed) -> Value {
                 "rows": l.rows.iter().map(|(f, c)| json!({"freq_hz": num(*f), "ceiling": num(*c)})).collect::<Vec<_>>(),
             })).collect::<Vec<_>>(),
         },
-        "capture": {
-            "rule": match core.capture.trigger {
-                CaptureTrigger::Off => "off",
-                CaptureTrigger::EntireTest => "entire_test",
-                CaptureTrigger::Manual => "manual",
-                CaptureTrigger::AutoFirstSeconds { .. } => "first_seconds",
-            },
-            "first_s": match core.capture.trigger {
-                CaptureTrigger::AutoFirstSeconds { n_s } => num(n_s),
-                _ => Value::Null,
-            },
-            "level_settle_s": num(core.capture.level_settle_s),
-            "periodic_save_s": core.capture.periodic_save_s.map_or(Value::Null, num),
-            "run_name": extras.capture.run_name,
-        },
+        "operator": extras.operator,
+        "article": extras.article,
+        "notes": extras.notes,
+        "specification": extras.specification.as_ref().map_or(Value::Null, |(d, c)| {
+            json!({"document": d, "clause": c})
+        }),
+        "record": {"streams": extras.record_streams},
         "metadata": core.metadata.iter()
             .map(|m| json!({"key": m.key, "label": m.label, "value": m.value}))
             .collect::<Vec<_>>(),

@@ -98,6 +98,14 @@ pub(crate) struct Ident {
     pub(crate) lag: usize,
     pub(crate) band_coherence: f64,
     pub(crate) trusted_frac: f64,
+    /// Per control channel, the complex transfer function, drive to response
+    /// (the response taken `lag` frames later), in the file's convention:
+    /// `conj(X) Y / |X|^2` with the standard (negative-exponent) transform, so
+    /// a delay lags. Kept for a host's record; nothing in the run reads it.
+    pub(crate) h: Vec<Vec<(f64, f64)>>,
+    /// Per control channel, the ordinary coherence (the composite is
+    /// [`Self::coherence`]).
+    pub(crate) coherence_by: Vec<Vec<f64>>,
 }
 
 /// Everything a run holds once it is armed.
@@ -1418,6 +1426,7 @@ fn estimate_plant(
     let mut per_h2 = vec![vec![0.0; lines]; resp.len()];
     let mut per_g = vec![vec![0.0; lines]; resp.len()];
     let mut per_coh = vec![vec![0.0; lines]; resp.len()];
+    let mut per_h = vec![vec![(0.0, 0.0); lines]; resp.len()];
     for (c, y) in resp.iter().enumerate() {
         let (mut sxx, mut syy) = (vec![0.0; lines], vec![0.0; lines]);
         let mut sxy = vec![(0.0, 0.0); lines];
@@ -1447,6 +1456,10 @@ fn estimate_plant(
             if sxx[k] > 0.0 {
                 per_h2[c][k] = m2 / (sxx[k] * sxx[k]);
                 per_g[c][k] = per_h2[c][k].sqrt();
+                // The transform above has the positive exponent, so its
+                // conj(X) Y is the conjugate of the standard one: conjugated
+                // once here, the file's convention (a delay lags).
+                per_h[c][k] = (sxy[k].0 / sxx[k], -sxy[k].1 / sxx[k]);
             }
             if sxx[k] > 0.0 && syy[k] > 0.0 {
                 per_coh[c][k] = (m2 / (sxx[k] * syy[k])).clamp(0.0, 1.0);
@@ -1472,5 +1485,76 @@ fn estimate_plant(
         lag,
         band_coherence,
         trusted_frac,
+        h: per_h,
+        coherence_by: per_coh,
+    }
+}
+
+#[cfg(test)]
+mod mixed_frf_convention_tests {
+    use super::estimate_plant;
+
+    /// The identification's complex transfer function is kept in the file's
+    /// convention, `conj(X) Y / |X|^2` with the standard (negative-exponent)
+    /// transform, so it is `Y/X` and a delay lags. A resonance behind a pure delay
+    /// of three frames is identified with the lag search held to zero (so the
+    /// delay stays in the record) and compared with the plant line by line. Red if
+    /// the conjugation in `estimate_plant` is removed (every phase reversed).
+    #[test]
+    fn a_delay_lags_in_the_mixed_identification() {
+        use std::f64::consts::PI;
+        let fs = 1024.0;
+        let nfft = 256;
+        let delay = 3usize;
+        let (r, w0) = (0.97f64, 2.0 * PI * 100.0 / fs);
+        let (a1, a2) = (-2.0 * r * w0.cos(), r * r);
+        let b0 = 1.0 + a1 + a2;
+        let n = 1 << 16;
+        let mut seed = 0x1234_5678_u64;
+        let x: Vec<f64> = (0..n)
+            .map(|_| {
+                seed ^= seed << 13;
+                seed ^= seed >> 7;
+                seed ^= seed << 17;
+                (seed >> 11) as f64 / (1u64 << 53) as f64 - 0.5
+            })
+            .collect();
+        let mut y = vec![0.0; n];
+        for k in 0..n {
+            let xd = if k >= delay { x[k - delay] } else { 0.0 };
+            let y1 = if k >= 1 { y[k - 1] } else { 0.0 };
+            let y2 = if k >= 2 { y[k - 2] } else { 0.0 };
+            y[k] = b0 * xd - a1 * y1 - a2 * y2;
+        }
+        let ident = estimate_plant(&x, &[y], &[1.0], fs, nfft, (5, 100), 1, (0.5, 0.05));
+        assert_eq!(ident.lag, 0);
+        let (h, coh) = (&ident.h[0], &ident.coherence_by[0]);
+        let mut checked = 0;
+        for k in 5..100 {
+            let w = 2.0 * PI * k as f64 / nfft as f64;
+            let (dr, di) = (
+                1.0 + a1 * w.cos() + a2 * (2.0 * w).cos(),
+                -a1 * w.sin() - a2 * (2.0 * w).sin(),
+            );
+            let (nr, ni) = (
+                b0 * (w * delay as f64).cos(),
+                -b0 * (w * delay as f64).sin(),
+            );
+            let den = dr * dr + di * di;
+            let (tr, ti) = ((nr * dr + ni * di) / den, (ni * dr - nr * di) / den);
+            if coh[k] < 0.95 {
+                continue;
+            }
+            let (er, ei) = h[k];
+            let phase = (ei * tr - er * ti).atan2(er * tr + ei * ti);
+            assert!(phase.abs() < 0.15, "line {k}: phase off by {phase:.3} rad");
+            let ratio = er.hypot(ei) / tr.hypot(ti);
+            assert!(
+                (ratio - 1.0).abs() < 0.15,
+                "line {k}: magnitude ratio {ratio:.3}"
+            );
+            checked += 1;
+        }
+        assert!(checked > 60, "only {checked} lines were coherent");
     }
 }

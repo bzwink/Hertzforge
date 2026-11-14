@@ -1,0 +1,14 @@
+{"seq":0,"at_unix":1794240000.25,"frame":null,"kind":"state","text":"configured \"Golden Mixed Mode\" on sim"}
+{"seq":1,"at_unix":1794240001.25,"frame":null,"kind":"state","text":"idle to armed","data":{"from":"idle","to":"armed","state":"armed"}}
+{"seq":2,"at_unix":1794240002.25,"frame":null,"kind":"station","text":"armed on sim at 4096 Hz, a 410 frame tick, shared clock","data":{"class":"sim","fs_hz":4096.0,"tick_frames":410}}
+{"seq":3,"at_unix":1794240003.25,"frame":null,"kind":"state","text":"armed to sysid","data":{"from":"armed","to":"sysid","state":"running"}}
+{"seq":4,"at_unix":1794240004.25,"frame":9728,"kind":"note","text":"identification at 0.0447 V rms: band coherence 0.988, lag 72 frames"}
+{"seq":5,"at_unix":1794240005.25,"frame":9728,"kind":"state","text":"sysid to coherence gate","data":{"from":"sysid","to":"coherence_gate","state":"running"}}
+{"seq":6,"at_unix":1794240006.25,"frame":9728,"kind":"state","text":"coherence gate to floor only","data":{"from":"coherence_gate","to":"floor_only","state":"running"}}
+{"seq":7,"at_unix":1794240007.25,"frame":19968,"kind":"note","text":"the floor did not equalize in 2.3 s (the larger of its settle time and the 2.3 s this grid needs for 120 degrees of freedom); the parts come in now"}
+{"seq":8,"at_unix":1794240008.25,"frame":19968,"kind":"state","text":"floor only to engaged","data":{"from":"floor_only","to":"engaged","state":"running"}}
+{"seq":9,"at_unix":1794240009.25,"frame":28160,"kind":"level","text":"level 0 dB","data":{"level_db":0.0,"t_s":4.4375}}
+{"seq":10,"at_unix":1794240010.25,"frame":30208,"kind":"state","text":"engaged to full level","data":{"from":"engaged","to":"full_level","state":"running"}}
+{"seq":11,"at_unix":1794240011.25,"frame":34304,"kind":"state","text":"full level to ramping down","data":{"from":"full_level","to":"ramping_down","state":"stopping"}}
+{"seq":12,"at_unix":1794240012.25,"frame":36096,"kind":"state","text":"ramping down to stopped","data":{"from":"ramping_down","to":"stopped","state":"finished"}}
+{"seq":13,"at_unix":1794240013.25,"frame":36096,"kind":"note","text":"Test complete: the schedule finished and every part ramped down with the controlled stop.","data":{"outcome":"completed","end":{"outcome":"completed","message":"Test complete: the schedule finished and every part ramped down with the controlled stop.","at_s":6.25,"level_db":0,"ramp_s":0.688,"trip":null}}}

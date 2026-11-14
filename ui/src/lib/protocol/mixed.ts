@@ -31,6 +31,7 @@ import type {
 	Schedule,
 	SpectrumView,
 	StationClass,
+	RunRecordRef,
 	StationRef,
 	View
 } from './types';
@@ -38,7 +39,6 @@ import type { LawEntry } from './mimo';
 import type { ShockLawChoice } from './shock';
 import type {
 	SineAdjustRefusal,
-	SineCapture,
 	SineDirection,
 	SineDwellFor,
 	SineIdentificationFacts,
@@ -277,8 +277,14 @@ export interface MixedConfig {
 	limits: MixedLimits;
 	/** Random's, with its crest factor (default 3). */
 	feasibility?: FeasibilityInputs | null;
-	/** Sine's; `run_name` default `mixed`. */
-	capture?: SineCapture;
+	/** The operator's words, kept in the run's record (Random's). */
+	operator?: string;
+	article?: string;
+	notes?: string;
+	/** The document and clause the test is run to. */
+	specification?: { document: string; clause: string } | null;
+	/** `streams: false` keeps the record without the inputs and drive streams. */
+	record?: { streams?: boolean } | null;
 	metadata?: { key: string; label?: string; value: string }[];
 }
 
@@ -684,6 +690,8 @@ export interface MixedState {
 	law: { floor: MixedLawRef; tones: MixedLawRef } | null;
 	feasibility: FeasibilityVerdict | null;
 	end: MixedEnd | null;
+	/** The run's record, from arm on (Random's). */
+	record?: RunRecordRef;
 }
 
 /** Random's kinds, and `part`: a part switched on or off. */

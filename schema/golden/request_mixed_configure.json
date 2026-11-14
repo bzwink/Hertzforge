@@ -349,12 +349,15 @@
     },
     "crest_factor": 3
    },
-   "capture": {
-    "rule": "off",
-    "first_s": null,
-    "level_settle_s": 1,
-    "periodic_save_s": null,
-    "run_name": "mixed"
+   "operator": "A. Operator",
+   "article": "Rotor housing, serial 4",
+   "notes": "first article",
+   "specification": {
+    "document": "Test procedure 12",
+    "clause": "4.3"
+   },
+   "record": {
+    "streams": true
    },
    "metadata": [
     {

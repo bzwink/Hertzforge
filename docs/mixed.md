@@ -10,7 +10,7 @@ moves every part by the same dB.
 
 This guide is written for the test engineer running the test. It follows the order of a run: the
 station and channels, the floor, the tones and narrowbands, the schedule and identification,
-control, limits and capture, then the run itself. Mixed Mode shares its run bar, station panel,
+control, limits and the run record, then the run itself. Mixed Mode shares its run bar, station panel,
 channel table and control-law panel with the other test types, its floor, ladder and identification
 with Random, and its tone tracking and tone law with Sine.
 
@@ -157,24 +157,27 @@ on, nothing plays until the operator proceeds.
   channel too hard is caught by that channel's abort, the kinematic monitor and the drive ceiling.
 - **Shaker ratings:** the predicted peak of the sum, checked at configure and at arm.
 
-## Capture
+## The Run Record
 
-What the run records beyond its report, the run folder's name under the local data folder, and the
-words kept with the run. The run records nothing (`off`, the default) or the entire test
-(`entire_test`); recording only what is started and stopped by hand, or the first seconds at each
-level, is refused when the setup is applied. The folder is `mixed` unless named; when that name is
-taken, the run gets the next free one (`mixed-2`, ...).
+Every run is recorded, from the moment it arms, in a run folder of its own under the local data
+folder, named for the time it armed and the run (`<YYYYMMDD-HHMMSS>_mixed_<run id>`); no run writes
+over another. The Run Record panel on the setup takes the words kept with the run (the operator,
+the article, notes, and the document and clause the test is run to) and whether the record keeps
+the time histories. The run's screen shows the folder and its recording line while the run goes,
+and once it has ended opens the run in Analysis or copies the folder's path.
 
-The entire test is recorded from engage, when the drive starts after the identification and any
-review hold, until the run ends; the identification is not recorded. The run folder holds:
+The folder holds the channel table the run armed with, the setup as applied and what it resolved
+to (the floor's breakpoints, every tone and narrowband with its sweep, dwell or follow and its
+level, the schedule, the limits and the control settings), both control laws with their guards, the
+run's log as it was made, every enabled input and the drive as the device accepted it from the
+identification on, the identification's transfer function and coherence, the floor's spectra at each
+level change and at the end, each tone's tracked level, phase and frequency, each narrowband's and
+the floor's level as the run went, every call made to the floor's law and each tone's law, and how
+the run ended. `docs/run-folder.md` ("What a Mixed Mode Run Saves") lists it file by file.
 
-- the control channels at the run's rate, with the channel table and the run's settings beside it.
-  Only the control channels are recorded; the other inputs and the drive are not.
-- a description of the law records (`law.json`) and every call made to the floor's law and each
-  tone's law (`law_ticks.bin`): its time, the drive it was handed and the drive it returned, how
-  long it took, and whether it was used.
-
-A save interval can be given, but Mixed Mode saves no snapshots while it records.
+The record is written on its own thread, as the run goes: a slow or full disk never slows or stops
+the run. When the data folder cannot be written the run does not arm, and says why. When the disk
+holds less than the space kept free, the run goes on without its time histories and says so.
 
 ## The Run
 

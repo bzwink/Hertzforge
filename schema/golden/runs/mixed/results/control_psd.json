@@ -1,0 +1,88 @@
+{
+  "name": "control_psd",
+  "kind": "psd",
+  "abscissa": {
+    "kind": "frequency",
+    "unit": "Hz",
+    "start": 96.0,
+    "step": 16.0
+  },
+  "channels": {
+    "responses": [
+      1
+    ]
+  },
+  "records": {
+    "index": "record",
+    "why": "level (the last chunk before a level change) or end (the last chunk with the background's loop)",
+    "level_db": "the level in force",
+    "frame": "the station frame when it was kept"
+  },
+  "description": "each control channel's spectrum with the tones in, and the composite; the reference at the level in force (the background and each band where it is), with its alarm and abort lines",
+  "arrays": [
+    {
+      "name": "values",
+      "dtype": "f8",
+      "shape": [
+        1,
+        26
+      ],
+      "unit": "g^2/Hz",
+      "offset": 0
+    },
+    {
+      "name": "composite",
+      "dtype": "f8",
+      "shape": [
+        26
+      ],
+      "unit": "g^2/Hz",
+      "offset": 208
+    },
+    {
+      "name": "reference",
+      "dtype": "f8",
+      "shape": [
+        26
+      ],
+      "unit": "g^2/Hz",
+      "offset": 416
+    },
+    {
+      "name": "alarm_low",
+      "dtype": "f8",
+      "shape": [
+        26
+      ],
+      "unit": "g^2/Hz",
+      "offset": 624
+    },
+    {
+      "name": "alarm_high",
+      "dtype": "f8",
+      "shape": [
+        26
+      ],
+      "unit": "g^2/Hz",
+      "offset": 832
+    },
+    {
+      "name": "abort_low",
+      "dtype": "f8",
+      "shape": [
+        26
+      ],
+      "unit": "g^2/Hz",
+      "offset": 1040
+    },
+    {
+      "name": "abort_high",
+      "dtype": "f8",
+      "shape": [
+        26
+      ],
+      "unit": "g^2/Hz",
+      "offset": 1248
+    }
+  ]
+}

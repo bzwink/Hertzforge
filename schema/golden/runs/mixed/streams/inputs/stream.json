@@ -1,0 +1,23 @@
+{
+  "kind": "inputs",
+  "fs_hz": 4096,
+  "channels": [
+    {
+      "index": 1,
+      "unit": "g",
+      "description": "Control"
+    },
+    {
+      "index": 2,
+      "unit": "g",
+      "description": "Monitor"
+    }
+  ],
+  "first_station_frame": 0,
+  "name": "inputs",
+  "frames": 256,
+  "gaps": [],
+  "complete": true,
+  "fault": null,
+  "cut_from_frames": 36096
+}

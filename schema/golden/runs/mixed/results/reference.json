@@ -1,0 +1,67 @@
+{
+  "name": "reference",
+  "kind": "envelope",
+  "abscissa": {
+    "kind": "frequency",
+    "unit": "Hz",
+    "array": "frequency"
+  },
+  "channels": {},
+  "description": "the reference and its alarm and abort bands at 0 dB, on the run's lines",
+  "arrays": [
+    {
+      "name": "frequency",
+      "dtype": "f8",
+      "shape": [
+        26
+      ],
+      "unit": "Hz",
+      "offset": 0
+    },
+    {
+      "name": "reference",
+      "dtype": "f8",
+      "shape": [
+        26
+      ],
+      "unit": "g^2/Hz",
+      "offset": 208
+    },
+    {
+      "name": "alarm_low",
+      "dtype": "f8",
+      "shape": [
+        26
+      ],
+      "unit": "g^2/Hz",
+      "offset": 416
+    },
+    {
+      "name": "alarm_high",
+      "dtype": "f8",
+      "shape": [
+        26
+      ],
+      "unit": "g^2/Hz",
+      "offset": 624
+    },
+    {
+      "name": "abort_low",
+      "dtype": "f8",
+      "shape": [
+        26
+      ],
+      "unit": "g^2/Hz",
+      "offset": 832
+    },
+    {
+      "name": "abort_high",
+      "dtype": "f8",
+      "shape": [
+        26
+      ],
+      "unit": "g^2/Hz",
+      "offset": 1040
+    }
+  ]
+}
