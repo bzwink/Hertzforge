@@ -5,8 +5,8 @@ control service while the run goes, that needs no other file and no running
 service to be read. The analysis side converts it into an ordinary project file
 (`hertzforge convert-run FOLDER`, or open the folder or its `run.json`), so a
 finished run reaches every analysis tool with its channel table, its setup, its
-log and its measurements. Today the Random, Sine and Classical Shock modules and
-the Recorder write one for every run; the other control modules do not yet.
+log and its measurements. Today the Random, Sine, Classical Shock and TWR modules
+and the Recorder write one for every run; the other control modules do not yet.
 
 The exact form is the reader's, `hertzforge.io.run_folder`; the conversion is
 `hertzforge.io.run_convert`, described in `docs/hforge-format.md` ("Run Folders
@@ -18,11 +18,12 @@ written by.
 Under the service's data folder: the folder `HERTZFORGE_DATA_ROOT` names, or
 `Hertzforge_Data` in the home folder. A Random run's folder is named
 `<YYYYMMDD-HHMMSS>_random_<run id>`, a Sine run's
-`<YYYYMMDD-HHMMSS>_sine_<run id>` and a Classical Shock run's
-`<YYYYMMDD-HHMMSS>_classical_shock_<run id>`, the time it armed in UTC. A
+`<YYYYMMDD-HHMMSS>_sine_<run id>`, a Classical Shock run's
+`<YYYYMMDD-HHMMSS>_classical_shock_<run id>` and a TWR run's
+`<YYYYMMDD-HHMMSS>_twr_<run id>`, the time it armed in UTC. A
 Recorder run's folder is the plain name its setup gives (`capture.run_name`).
 The run's state names the folder from arm on (`random.state`, `sine.state`,
-`shock.state` and `recorder.state`, `record.folder`).
+`shock.state`, `twr.state` and `recorder.state`, `record.folder`).
 
 ## Layout
 
@@ -263,6 +264,55 @@ The golden folder is written by `cargo test -p sds-control --test
 classical_shock_golden_run` from a short run on the simulator, with fixed seeds,
 its wall times and build fields normalized; `scripts/make_golden_runs.sh`
 rewrites it.
+
+## What a TWR Run Saves
+
+From arm: `run.json`, `table.json`, `setup.json` (the configuration as accepted;
+resolved, the reference as stored with its name, SHA-256, rate, length, units
+and preparation, the record it was prepared into at the rate the station runs
+at with its section and pads, the identification, the inverse and the
+correction, the control law and its guards, the level schedule with its gate,
+its iterations and the playback's play count, the limits and the feasibility
+ceilings, and the rates; the derived values; feasibility), `law/law.json` (the
+law's identity, parameters and guards) and `log.jsonl` (every state, level,
+play with its level, error and how it ended, alarm, trip, hold and operator
+action, each with its facts in `data`), and these files, each checked against
+the golden run folder (`schema/golden/runs/twr/`) by
+`tests/test_twr_run_folder_golden.py`:
+
+| File | What |
+|---|---|
+| `streams/inputs` | Every enabled input as read from the station, in table order, a shot for the identification and one for each play (`kind` `inputs`) |
+| `streams/drives` | The drive as the device accepted it, in volts, shot for shot with the inputs, with the lag every play is aligned at (`kind` `drives`) |
+| `results/reference` | The reference as imported, at its own rate (`kind` `waveform`, kept as arrays) |
+| `results/target` | The target at full level: the prepared section between its pads on the record's samples, time from the section's start, with the alarm and abort bands' share of its peak (`kind` `transient_reference`) |
+| `results/identification_frf` | The identification's complex transfer function, drive to control response, on the identification band (`kind` `frf`) |
+| `results/identification_coherence` | Its ordinary coherence, and the lines the correction trusts (`kind` `coherence`) |
+| `results/plays` | Each play: its level, kind and iteration, its rms, peak and spectral error, whether it met the gate, its clipped samples and clamped bins, its drive and response peaks, its lag and drift, its start and length in station frames, and whether it tripped or was cancelled (`kind` `play_results`, kept as arrays, one record per play) |
+| `results/law_calls` | Every call of the control law: the drive it returned at full level on the record's samples, the level and error it was handed, its caps, whether it was used and how long it took (`kind` `law_calls`, kept as arrays, one record per call) |
+| `end.json` | The end, as the run's state reports it |
+
+A play is one start and one stop of the station: its shot holds the record and
+the rest pad after it, and its `pre_frames` are the pad before the section, so
+the section starts at time zero. Each play's results are written when it is
+judged, the last play of the run included; the play a protection ends the run
+on, and one a stop or an abort cuts short, are recorded as far as the station
+acquired them, their shot and their record saying `tripped` or `cancelled`.
+The law is called at the seed, after an iteration play that misses its gate,
+and after a playback play only when correction goes on during playback; a call
+that gave no drive has NaN for it. A run held by its identification has its
+identification shot and no plays. With `record.streams` false there is no
+`streams/` folder. The analysis side keeps the target as a
+`TransientSpecification`, which has no limits, so the alarm and abort shares
+stay in its result's description; the reference as imported, each play's
+measures and every law call stay in the run record as named arrays.
+
+The golden folder is written by `cargo test -p sds-control --test
+twr_golden_run` from a short run on the simulator, with fixed seeds, its wall
+times, build fields and each law call's measured duration normalized, and each
+shot of its streams cut to its first 128 frames (`cut_from_frames`, on the
+stream and on each shot): every shot carries the station's rest pad of 1024
+frames; `scripts/make_golden_runs.sh` rewrites it.
 
 ## What a Random Run Saves
 
