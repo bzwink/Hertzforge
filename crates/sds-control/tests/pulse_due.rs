@@ -196,8 +196,17 @@ mod srs_late {
         fn misses(&self) -> u32 {
             self.inner.misses()
         }
-        fn take_log(&mut self) -> Vec<(&'static str, String)> {
+        fn take_log(&mut self) -> Vec<sds_control::srs::engine::LogLine> {
             self.inner.take_log()
+        }
+        fn release(&mut self) {
+            self.inner.release()
+        }
+        fn take_station_facts(&mut self) -> Option<sds_control::srs::engine::StationFacts> {
+            self.inner.take_station_facts()
+        }
+        fn ident_record(&self) -> Option<sds_control::srs::record::IdentRecord> {
+            self.inner.ident_record()
         }
         fn last_pulse_start(&self) -> Option<Instant> {
             self.last

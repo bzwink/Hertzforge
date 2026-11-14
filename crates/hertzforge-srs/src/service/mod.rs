@@ -200,6 +200,9 @@ struct PlayedFacts {
 struct MeasuredFrf {
     freqs_hz: Vec<f64>,
     mag: Vec<f64>,
+    /// The complex estimate `(re, im)` whose modulus is `mag`, kept for the run's
+    /// record; nothing in the control reads it.
+    h: Vec<(f64, f64)>,
     coherence: Vec<f64>,
     band_coherence: f64,
 }
@@ -944,6 +947,10 @@ impl SrsShockService {
             for m in control_frf.mag.iter_mut() {
                 *m *= s;
             }
+            for (re, im) in control_frf.h.iter_mut() {
+                *re *= s;
+                *im *= s;
+            }
             self.log.push(EventKind::Note {
                 text: format!(
                     "the identified gain is scaled {:+.1} dB before the seed",
@@ -1113,6 +1120,7 @@ impl SrsShockService {
         MeasuredFrf {
             freqs_hz: freqs,
             mag,
+            h,
             coherence: coh,
             band_coherence: if n > 0 { acc / n as f64 } else { 0.0 },
         }
