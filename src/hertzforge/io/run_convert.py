@@ -3,9 +3,9 @@
 `convert` reads a run folder (`hertzforge.io.run_folder`) and writes a
 `.hforge` project every analysis tool opens with `Project.open`, by
 default `<run name>.hforge` inside the folder. The control service's
-Random, Sine and Classical Shock modules and its Recorder write a run
-folder for every run; the other control modules do not yet. This is the
-analysis side of that bridge.
+Random, Sine, Classical Shock and Explorer modules and its Recorder write
+a run folder for every run; the other control modules do not yet. This
+is the analysis side of that bridge.
 
 The project holds, in this order:
 
@@ -42,8 +42,9 @@ The project holds, in this order:
   the warning limits, in SI at the result's Q;
 - the `RunRecord`: the manifest, the table and setup as written, the
   law, the log, the end, each stream's and result's description, the
-  arrays of results no analysis class holds, and what the folder
-  lacked.
+  arrays of results no analysis class holds (an Explorer run's survey
+  line and amplitude spectra among them: magnitudes with no phase, kept
+  in the channels' units as written), and what the folder lacked.
 
 All of them are linked in one object group named for the run. A gap in
 a stream is not padded: the samples after it follow on, and each record
